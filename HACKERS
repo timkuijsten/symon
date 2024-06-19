@@ -1,0 +1,47 @@
+Adding a probe for a new platform
+---------------------------------
+
+Look at similar probes for other platforms and work out what each value
+means. Ensure that your probe conveys the same semantics, this allows ppl that
+want to monitor several different platform simultaneously to compare probe
+measurements.
+
+Places to touch:
+
+- platform/<os>/sm_<name>.c: your probe
+
+- platform/<os>/cons.sh: your checks for system dependencies. Make sure you
+  check for features, not versions here.
+
+- platform/<os>/platform.h: stream_parg holds stream instance state data that
+  is platform specific.
+
+
+Adding a new probe
+------------------
+
+Get your measurement as fast as possible with as little fuss as possible. Ideal
+is to get all items that the user might want to query in one gets() and give
+symon the readings for a particular item in a get(). This way, all information
+submitted by one probe is measured at the same time.
+
+Places to touch:
+
+- lib/data.[ch]: define the new dataformat. MT_YOURSTREAM should be the old
+  MT_EOF to not break old versions.
+
+- lib/lex.[ch]: define the token for the lexer
+
+- sym[on|ux]/readconf.c: parse the new token
+
+- symux/c_smrrds.sh: add new rrdtool storage format
+
+- platform/stub/sm_<name>.c: insert your stub probe here. Makefile will look
+  for platform/<os>/sm_<name>.c after that.
+
+- platform/<os>/sm_<name>.c: your probe
+
+- symon/main.c: insert hooks into probe caller table
+
+- symon/symon.8, symux/symux.8: add your token and its internal format to the
+  manual pages.

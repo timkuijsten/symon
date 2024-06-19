@@ -1,0 +1,18 @@
+TODO:
+
+== current problems / short term
+   - symux queues rrd values for a particular time. Cheers to Jean-Gérard
+     Pailloncy for the suggestion.
+
+- rewrite sm_proc.c, don't count shared pages twice
+- check shared memory for hackable bugs. (master should only write, clients
+  should only read. clients should check incoming data for sanity.)
+
+- check for availability of rrd before compilation
+- release probe memory at config reload
+- same for pagetob and friends
+
+== longer term
+- change rrd to accommodate batch updates
+- write a muxer that supports unix pipes
+- test framework

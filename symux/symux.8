@@ -1,0 +1,358 @@
+.\"  -*- nroff -*-
+.\"
+.\" Copyright (c) 2001-2012 Willem Dijkstra
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\"
+.\"    - Redistributions of source code must retain the above copyright
+.\"      notice, this list of conditions and the following disclaimer.
+.\"    - Redistributions in binary form must reproduce the above
+.\"      copyright notice, this list of conditions and the following
+.\"      disclaimer in the documentation and/or other materials provided
+.\"      with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+.\" FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+.\" COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+.\" INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+.\" BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+.\" LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+.\" CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+.\" ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd April 4, 2012
+.Dt SYMUX 8
+.Os
+.Sh NAME
+.Nm symux
+.Nd symon stream multiplexer
+.Sh SYNOPSIS
+.Nm
+.Op Fl dltv
+.Op Fl f Ar filename
+.Pp
+.Sh DESCRIPTION
+.Xr symon 8
+is a lightweight system monitor that measures cpu, load, filesystem, interface, disk,
+memory, pf, pf queues, mbuf, proc and sensor statistics every 5 seconds. This
+information is then spooled to
+.Nm
+for further processing.
+.Pp
+.Xr symon 8
+has been designed to inflict minimal performance and security impact on
+the system it monitors.
+.Nm
+has performance impact proportional to the amount of streams it needs to
+manage. Ideally
+.Nm
+should live on a different system and collect data from several
+.Xr symon 8
+instances in a LAN.
+.Nm
+stores the incoming streams in .rrd files and distributes the
+information to connected listeners. Listeners can connect to
+.Nm
+on a tcp port and receive incoming
+.Xr symon 8
+transmissions decoded into ascii.
+.Lp
+.Nm
+needs no specific privileges besides being able to open it's ports and
+the rrd files. It should be run as
+.Ar "nobody" .
+.Lp
+The options:
+.Bl -tag -width Ds
+.It Fl d
+Stop
+.Nm
+from becoming a daemon and show debug information on stdout. Use this setting
+to find hosts or specific statistics that do get sent, but are ignored due to
+configuration.
+.It Fl f Ar filename
+Read configuration from
+.Ar filename
+instead of
+.Pa /etc/symux.conf .
+.It Fl l
+List rrd files found in active configuration.
+.It Fl t
+Test configuration file and exit.
+.It Fl v
+Show version.
+.El
+.Sh CONFIGURATION
+.Nm
+obtains configuration data from
+.Pa /etc/symux.conf .
+The configuration file contains one mux stanza that defines on what host
+address and port
+.Nm
+should listen to for incoming monitored data. There is a source section
+for every host that is to be monitored. The source section defines what
+data to accept and where to write that data to. In the case that a
+source is of another address family than the mux stanza, i.e. source =
+ipv6 with mux = ipv4, a listen port of the sources' family is opened
+using the unspecified address. Whitespace, newlines and text behind '#'
+are ignored. The format in BNF:
+.Pp
+.Bd -literal -offset indent -compact
+stmt         = mux-stmt | source-stmt
+mux-stmt     = "mux" host [ port ]
+host         = ip4addr | ip6addr | hostname
+port         = [ "port" | "," ] portnumber
+source-stmt  = "source" host "{"
+               accept-stmts
+               [ write-stmts ]
+               [ datadir-stmt ] "}"
+accept-stmts = accept-stmt [accept-stmts]
+accept-stmt  = "accept" "{" resources "}"
+resources    = resource [ version ] ["(" argument ")"]
+               [ ","|" " resources ]
+resource     = "cpu" | "cpuiow" | "debug" | "df" | "flukso" |
+               "if" | "io" | "load" | "mbuf" | "mem" | "pf" |
+               "pfq" | "proc" | "sensor" | "smart"
+version      = number
+argument     = number | interfacename | diskname
+datadir-stmt = "datadir" dirname
+write-stmts  = write-stmt [write-stmts]
+write-stmt   = "write" resource "in" filename
+.Ed
+.Pp
+Note that
+.Bl -tag -width Ds
+.It Va port
+in the
+.Va mux-stmt
+specifies the port-number for both the udp port (incoming
+.Xr symon 8
+traffic) and the tcp port for incoming listeners.
+.It Va version
+is needed to distinguish between the same type of information (i.e.
+.Va io
+) coming from different versions of OpenBSD. If no version number is
+supplied, the latest will be assumed.
+.It Va datadir
+will guess filenames for all accepted streams.
+.Va write
+statements always take precendence over a
+.Va datadir
+statement.
+.El
+.Sh EXAMPLE
+Here is an example
+.Ar symux.conf
+that listens to udp port 2100 on lo0, and accepts cpu, memory, pf,
+interfaces xl0/de0/lo0/wi0, disks wd[0-3]/cd[0-1], disk free blocks
+of three partition streams from a
+.Xr symon 8
+on localhost.
+.Nm
+will also listen on tcp port 2100 for incoming listeners.
+.Pp
+.Bd -literal -offset indent -compact
+mux 127.0.0.1 2100
+source 127.0.0.1 {
+    accept { cpu(0), mem, pf,
+	     if(xl0), if(de0),
+	     if(lo0), if(wi0),
+	     io(wd0), io(wd1), io(wd2),
+	     io(wd3), io(cd0), io(cd1),
+	     df(sd0a), df(sd0d), df(sd0e) }
+.Pp
+    datadir "/var/www/symon/rrds/localhost"
+}
+.Ed
+.Sh LISTENERS
+.Nm
+offers received
+.Xr symon 8
+data to other programs via tcp. An example of a listener session:
+.Pp
+.Bd -literal -offset indent -compact
+nexus:~/project/symon$ telnet 10.0.0.1 2100
+Trying 10.0.0.1...
+Connected to 10.0.0.1.
+Escape character is '^]'.
+.Pp
+10.0.0.1;mem::1077662160:7630848:53850112:469417984:0:25600;cpu:0:
+1077662160:0.00:0.00:0.30:0.20:99.50;io:wd0:1077662160:2074:12759:
+0:30736384:131780608;
+10.0.0.2;mbuf::1077658247:138:74:0:0:41:0:23:0:90:360:868352:25:0:
+0:0;pf::1077658247:700930123:535398451:0:352:1107229:706391:119833
+9:4:0:0:2:3:29:4109383:83291:83262:980325:0:1:6:0:0;mem::107765824
+7:79155200:131956736:391430144:0:536739840;cpu:0:1077658247:0.50:0
+\.00:0.00:0.90:98.60;proc:httpd:1077658247:9:216:172:8:3:0.00:14999
+552:0;if:lo0:1077658247:147104:147104:45868177:45868177:0:0:0:0:0:
+0;if:xl0:1077658247:284267:452077:150620236:273265863:372:89478:0:
+0:0:0;if:de0:1077658247:1813721:1197722:729054136:568900227:101:2:
+0:0:198:0;
+.Pp
+^]
+telnet> close
+Connection closed.
+.Ed
+.Lp
+The format is
+.Va symon-version
+:
+.Va symon-host-ip
+:
+.Va stream-name
+:
+.Va stream-argument
+:
+.Va timestamp
+:
+.Va data
+.Lp
+Data formats:
+.Bl -tag -width Ds
+.It cpu
+Time spent in ( user, nice, system, interrupt, idle ). Total time is 100, data
+is offered with precision 2.
+.It cpuiow
+Time spent in ( user, nice, system, interrupt, idle, iowait ). Total time is
+100, data is offered with precision 2.
+.It debug
+Kernel variables debug0 to debug19. ( debug0 : ... : debug19 ). Values are 32
+bit unsigned integers.
+.It df
+Disk free statistics ( blocks : bfree : bavail : files :
+ffree : syncwrites : asyncwrites ). Values are 64 bit unsigned integers.
+.It load
+Load averages for the last 1, 5, and 15 minutes ( load1, load5, load15 ). Data is offered with prec ision
+2 and a maximum of 655.
+.It if
+Alias for if2. See below.
+.It if1
+Pre OpenBSD 4.3 interface counters ( packets_in, packets_out, bytes_in,
+bytes_out, multicasts_in, multicasts_out, errors_in, errors_out, collisions,
+drops ). Values are 32 bit unsigned integers.
+.It if2
+Interface counters ( ipackets, opackets, ibytes, obytes,
+imcasts, omcasts, ierrors, oerrors, collisions, drops
+). Values are 64 bit unsigned integers.
+.It io
+Alias for io2. See below.
+.It io1
+Pre OpenBSD 3.5 io/disk counters ( total_transfers, total_seeks, total_bytes
+). Values are 64 bit unsigned integers.
+.It io2
+Io/disk counters ( rxfer, wxfer, seeks, rbytes,
+wbytes). Values are 64 bit unsigned integers.
+.It mbuf
+Mbuf statistics ( totmbufs : mt_data : mt_oobdata : mt_control :
+mt_header : mt_ftable : mt_soname : mt_soopts : pgused : pgtotal :
+totmem : totpct : m_drops : m_wait : m_drain ).
+.It mem
+Alias for mem2. See below.
+.It mem1
+Pre symon 2.78 memory counters ( real_active, real_total, free, swap_used,
+swap_total ). All values are in bytes rounded to page boundaries. Values are 32
+bit unsigned integers.
+.It mem2
+Memory in ( real_active, real_total, free, swap_used, swap_total ). All values
+are in bytes rounded to page boundaries. Values are 64 bit unsigned integers.
+.It pf
+Packet filter statistics ( bytes_v4_in : bytes_v4_out : bytes_v6_in :
+bytes_v6_out : packets_v4_in_pass : packets_v4_in_drop : packets_v4_out_pass :
+packets_v4_out_drop : packets_v6_in_pass : packets_v6_in_drop :
+packets_v6_out_pass : packets_v6_out_drop : states_entries : states_searches :
+states_inserts : states_removals : counters_match : counters_badoffset :
+counters_fragment : counters_short : counters_normalize : counters_memory
+). Values are 64 bit unsigned integers.
+.It pfq
+pf/altq queue statistics ( sent_bytes : sent_packets : drop_bytes :
+drop_packets ). Values are 64 bit unsigned integers.
+.It proc
+Process statistics ( number : uticks : sticks : iticks : cpusec : cpupct :
+procsz : rsssz ).
+.It sensor
+Single sensor measurement offered with 7.6 precision. Value depends on sensor
+type.
+.It smart
+SMART attributes ( read_error_rate: reallocated_sectors: spin_retries:
+air_flow_temp: temperature: reallocations: current_pending: uncorrectables:
+soft_read_error_rate: g_sense_error_rate: temperature2: free_fall_protection
+). Values depend on drive model and may change between models.
+.It flukso
+Average pwr sensor value offered with 7.6 precision. Value is a moving average
+and will depend on the number of measurements seen in a particular symon
+interval.
+.El
+.Sh SIGNALS
+.Bl -tag -width Ds
+.It SIGHUP
+Causes
+.Nm
+to read
+.Pa /etc/symux.conf
+or the file specified by the
+.Fl f
+flag.
+.Nm
+will keep the old configuration if errors occured during parsing of the
+configuration file.
+.El
+.Sh FILES
+.Bl -tag -width Ds
+.It Pa /var/run/symux.pid
+Contains the program id of the
+.Nm
+daemon.
+.It Pa /etc/symux.conf
+.Nm
+system wide configuration file.
+.El
+.Sh LEGACY FORMATS
+.Nm
+supports symon(8) clients that send
+.Bl -tag -width Ds
+.It pre OpenBSD 3.5 disk statistics.
+These streams should be identified as io1(<disk>) instead of
+io(<disk>) in
+.Pa /etc/symux.conf.
+Also note that symon(8) measures io1 or io2 depending on whether it was
+compiled on a host that supports version 1 or 2. The rrd datastructures of
+these streams differ and there is no easy way to change an io1 rrd into an io2
+rrd.
+.It pre symon 2.78 mem/if statistics.
+These streams should be identified as if1(<interface>) and mem1() in
+.Pa /etc/symux.conf.
+symon versions 2.78 and up will always report if2 and mem2 statistics. The rrd
+files for the old and new probes are identical and need not be changed.
+.El
+.Pp
+.Nm
+will output what version of information it is offered by symon(8)s on
+the network when started with the
+.Va -d
+flag.
+.Sh BUGS
+.Nm
+writes incoming data to rrd files "in process". An rrdupdate on a somewhat
+stale rrdfile -- with the last data from quite some time in the past -- is a
+very expensive operation. This can cause
+.Nm
+to lockup while rrdupdate is updating the rrd file.
+.Nm
+will be unresponsive during this process.
+.Sh AUTHOR
+Willem Dijkstra <wpd@xs4all.nl>. \%Daniel \%Hartmeier helped to port to big-endian
+architectures. \%Matthew \%Gream helped to port symon to other BSD platforms.
+.Pp
+Port contributors: \%Marc \%Balmer, \%Tito \%Dal \%Canton, \%Matthew
+\%Gream, \%Daniel \%Hartmeier, \%Lars \%Kotthoff, \%Constantine
+A. \%Murenin, J. \%Martin \%Petersen, \%Fredrik \%Soderblom, \%Harm
+\%Schotanus and \%Martin van der \%Werff.
+.Sh SEE ALSO
+.Xr symon 8

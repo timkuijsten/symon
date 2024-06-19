@@ -1,0 +1,692 @@
+21/07/2016 - 2.88
+
+   - platform/Linux/sm_if.c more robust interface finding (Niels Koster)
+
+24/10/2014 - 2.87
+
+   - platform/FreeBSD/sm_cpu.c updated to support smp
+
+   - platform/Linux/sm_io.c read all disk info, not just first block
+
+   - client/SymuxClient.pm removed documentation errors (Jeroen Roovers)
+
+   - symon.8, mention that a windows symon client by Valeriy Leshchinskiy is
+     available on https://github.com/ValHazelwood/SymonClient
+
+   - symux/symux.8 counter name fixes (Dennis Lindahl)
+
+   - symon/c_config.sh updated. # cpus are now detected + more Linux mount
+     types supported.
+
+05/02/2013 - 2.86
+
+   - platform/OpenBSD/sm_proc.c updated to new kinfo_proc interface
+
+   - platform/OpenBSD/sm_io.c hw.disknames was parsed wrong for devices with
+     no uuid (Raphaël Berbain)
+
+   - platform/FreeBSD/sm_smart.c updated to also support atacam (Alexander
+     Sheiko)
+
+18/02/2012 - 2.85
+
+   - lib/diskname rewrite -- return possible disknames for Linux and FreeBSD
+     based on a number of predefined path patterns
+
+   - platform/Linux allow /dev/mapper disknames (Edho Arief)
+
+14/01/2012 - 2.84
+
+   - platform/Linux/disk probes now handles '/' in arguments (Bostjan Skufca)
+
+   - platform/FreeBSD/disk probes now allow args not in '/dev' (Edho Arief),
+     and support diskname by ufs name, ufs id, gpt id.
+
+   - platform/FreeBSD/sm_mem.c: sysctl call could overwrite swap count (Edho
+     Arief)
+
+   - platform/NetBSD/Makefile.inc: update linker flags for finding librrd in
+     /usr/pkg
+
+01/05/2011 - 2.83
+
+   - Added flukso probe
+
+   - platform/OpenBSD/sm_io.c updated to support uids (Stuart Henderson)
+
+   - platform/Linux/sm_df.c checks if /etc/mtab could be openend (Lars Kotthoff)
+
+   - platform/Linux: Support diskname by id, label, path or uuid for smart, io
+     and df probes.
+
+15/06/2010 - 2.82
+
+   - platform/OpenBSD/sm_sensor.c define MAXSENSORSDEVICES (Stuart Henderson)
+
+31/05/2010 - 2.81
+
+   - symon: Allow multiple monitor statements with different intervals to the
+     same mux. Retrieving smart info every 5 secs confuses some disks.
+
+   - platform/Linux/sm_df.c now uses statvfs (Harm Schotanus)
+
+   - Added load average probe (Lars Kotthoff)
+
+   - Smart probe assumed that its ioctl cmd structure was not overwritten and
+     did not check the return code correctly on NetBSD. (Tito Dal Canton)
+
+   - platform/Linux/sm_smart.c: support for kernels 2.6.9 and friends that miss
+     the required hdio structure.
+
+   - c_smrrds.sh: Allow more than 10 cpus.
+
+   - platform/OpenBSD/sm_proc.c now uses PROC2 sysctl (Stuart Henderson /
+     Tasmanian Devil)
+
+   - platform/OpenBSD/sm_sensor.c now uses the updated sensors api (Stuart
+     Henderson / Tasmanian Devil).
+
+23/11/2009 - 2.80
+
+   - Removed all cvs ids, moved src control to git
+
+   - Added initial sensor probe for Linux which reads directly from hwmon. Note
+     that there is no conversion of the raw data to real voltage, temperature
+     or rotations.
+
+   - Added smart probe for NetBSD (Tito Dal Canton), Linux / FreeBSD / OpenBSD
+     (me). Note that smart values sometimes need per drive/per model
+     interpretation. Not all these probes have been tested thoroughly as they
+     require physical boxes to be tested on.
+
+   - Added libprobe; a library for code that is shared between probes,
+     e.g. smart decoding and cpu percentages calculation.
+
+   - platform/OpenBSD/sm_mem.c: more than 2^31 bytes of swap would overflow
+     calculation (Marco Pfatschbacher)
+
+   - client/SymuxClient.pm: typo fixed that clobbered total read/write
+     (Masahiro Yamagishi)
+
+   - client port now really optional in symon.conf
+
+   - platform/OpenBSD/sm_mbuf.c: patch from openbsd ports following h2k8 mcpl
+     changes (Stuart Henderson)
+
+07/04/2008 - 2.79
+
+   - Top makefile will not compile symux - and not need librrd - if SYMON_ONLY
+     is set.
+
+   - platform/*BSD/sm_mem: pages are now shifted up on int64 instead of
+     int. (Volodymyr Kostyrko)
+
+   - platform/FreeBSD/sm_mem: hw.physmem - free is now used as the real memory
+     used value. This unbreaks the graphs for FreeBSD 6.3+. Note that real
+     memory used in this way means all wired, active, inactive and cached
+     memory, as well as gaps in the memory stats that are used by the kernel
+     itself.
+
+   - platform/Linux/Makefile.inc: removed easy override to TSORT/LORDER on
+     Linux. (Volodymyr Kostyrko)
+
+   - platform/Linux/Makefile.inc: more sensible defaults for owner, group and
+     install directories.
+
+   - platform/Linux/sm_io.c: count only read/write operations in io, not merged
+     reads and writes. This way io/s show actuator movements, instead of
+     movements + cache hits. (Yeb Havinga)
+
+   - Updated INSTALL about chrooted timezone gotchas. (Cory Waddingham)
+
+   - Added a cpuiow probe that counts iowait ticks on Linux. (Yeb Havinga)
+
+   - platform/Linux/sm_cpu now also parses /proc/stat without steal entry.
+
+06/01/2008 - 2.78
+
+   - lib/sylimits.h: DFNAMESIZE bumped from 16 to 64 chars
+     (Mahlon E. Smith)
+
+   - if and mem probes upgraded to report in u_int64_t values. symux will
+     accept reports from older symons that use the old u_int32_t
+     format. The old if and mem rrd files need no adjustments to accept
+     the new data.
+
+   - c_smrrds.sh now specifies the start time at graph creation in such a
+     way that it can be used by both rrdtool 1.0.x and rrdtool 1.2.x.
+
+29/11/2007 - 2.77
+
+   - symon/symux -t can now be used to check configuration files before
+     running in anger.
+
+   - symon now also calculates maximum message size; with symux using
+     twice the calculated value to ensure that configuration errors
+     between sy[mon|mux].conf are detected in the logs. Both enforce
+     maximum message = sizeof(udp payload).
+
+   - Martin van der Werff donated the Linux/sm_df probe.
+
+   - symux/c_smrrds.sh/syweb now all think sensor probes are called
+     sensor_*. (Daniel Spizak, Evgeniy Sudyr)
+
+   - pfq probes must be specified as pfq(interface/queue) in symon and are
+     treated as pfq_interface_queue.rrd by symux.
+
+   - platform/Linux/sm_mem modified to better reflect OpenBSD's idea of
+     the vm_meter stats.
+
+05/07/2007 - 2.76
+
+   - symux/readconf.c resolve from host, but discard result. (Henning
+     Brauer)
+
+   - symux/symux.c -f used strncpy wrong and broke when using gcc4
+     (Mechiel Lukkien)
+
+   - platform/Linux/sm_cpu now uses iowait + hardirq + softirq + steal as
+     its cpu "interrupt". My feeling is that this is the most accurate
+     representation of what the values mean for the *BSDs.
+
+   - platform/NetBSD/sm_io uses new iostat_sysctl of NetBSD4
+
+   - platform/NetBSD/sm_pfq uses NetBSD3/4 altq stat names.
+
+   - symux/c_smrrds.sh now searches for rrdtool and symux in {$RRDTOOL,
+     $SYMUX}, $PATH and in the installation dirs. (Benoit Garcia)
+
+   - platform/OpenBSD/sm_if removed obselete netipx includes
+     (Christian Weisgerber)
+
+   - Daemon needs to be able to bind /dev/null - drop privileges after
+     daemon call (Markus Friedl).
+
+   - data.c/free_muxlist closed fd 0 at HUP. This makes symux unresponsive
+     on OpenBSD and makes it stop on FreeBSD. (Marco Pfatschbacher).
+
+   - platform/OpenBSD/sm_cpu fixed to call CPTIME2 only for machines with
+     more than one cpu. (Henning Brauer)
+
+13/02/2007 - 2.75
+
+   - OpenBSD sensors missed includes (Constantine A. Murenin)
+
+   - NetBSD now checks if pf is installed (Jean-Yves Moulin)
+
+11/02/2007 - 2.74
+
+   - symon can be told what local interface to send data from (Henning
+     Brauer)
+
+   - removed typos in client/SymuxClient.pm (Sandeep Kr Sangwan)
+
+   - OpenBSD sm_sensor upgrade to sensor_dev (Constantine A. Murenin)
+
+   - NetBSD can use OpenBSD sm_pf, sm_mem and sm_pfq with little
+     modifications (Jean-Yves Moulin)
+
+   - symon network protocol version bumped to allow stream arguments upto
+     63 characters.
+
+19/12/2006 - 2.73
+
+   - symux stops reporting rrd errors after 5 messages to counter logspam
+     (Henning Brauer)
+
+   - NetBSD compiles on 2.1 after addition of rrd.h location in
+     NetBSD/Makefile.inc
+
+   - FreeBSD/platform.h now also includes sys/socket.h and sys/dkstat.h,
+     which makes the FreeBSD probes compile on 4/5/6.
+
+   - FreeBSD/sm_pf and OpenBSD/sm_pf were broken when pf was not available
+     (Ulrich Spörlein)
+
+   - c_smrrds.sh now accepts filenames, not descriptions. Intended use is
+     now c_smrrds.sh `symux -l`.
+
+   - symux -l lists rrd files in active configuration.
+
+   - symon/symon.c now deals correctly with ntp drift and sleeps
+     longer. The previous version did not sleep long enough, which could
+     result in both the alarm and end of sleep issueing a measurement
+     where only one was due.
+
+   - Library deps now split between symon and symux. Not all libraries are
+     needed on a host if only symon/symux is compiled.
+
+   - OpenBSD/Makefile.inc now includes fontconfig library needed for gd >
+     2.0.33. This breaks symux compilation for OpenBSD < 3.9.
+
+   - OpenBSD/sm_cpu is smp aware
+
+   - OpenBSD/sm_mbuf needs errno
+
+   - symuxnet.c now allows clients to connect in Linux
+
+   - Linux/sm_io added
+
+   - FreeBSD/sm_mem fix for swap in 6/5/4 (Clive Lin)
+
+   - FreeBSD/sm_io updated to reflect devstats api change
+
+23/10/2005 - 2.72
+
+   - probes use a new "api" that allows per probe storage of
+     precomputed data
+
+   - Marc Balmer donated the df probe
+
+   - Harm Schotanus donated mem probe for linux that works on 2.4/2.6
+
+   - OpenBSD/sm_if.c no longer uses netns (Mitja Muzenic)
+
+   - symux/share.c now uses a ringbuffer to distribute symon packets to
+     connected tcp clients. Clients that can not keep up with the datarate
+     are still killed, but have a bit more time to catch up.
+
+   - Ulrich Spörlein updated proc probe for FreeBSD-current.
+
+   - sm_mem for FreeBSD did not clear swap stats between calls (J. Martin
+     Petersen)
+
+   - sm_sensor: sensor support was detected on OpenBSD, but did not get
+     configured (Eric Dillenseger)
+
+19/03/2005 - 2.71
+
+   - Ulrich Spörlein updated mem probe for FreeBSD-current and removed
+     some bugs from FreeBSD/conf.sh.
+
+   - J. Martin Petersen contributed the FreeBSD io probe and a new probe
+     called pfq that can monitor pf altq queues on Free and OpenBSD.
+
+22/02/2005 - 2.70
+
+   - Ulrich Spörlein updated the FreeBSD proc and mem probes, found a bug
+     in the mem probe for OpenBSD and helped extend the shell config files
+     for FreeBSD.
+
+   - Linux/Makefile.inc TSORT should be cat not echo
+
+16/02/2005 - 2.69
+
+   - inet6 support works again (Eric from Catastrophe.net)
+
+14/01/2005 - 2.68
+
+   - NetBSD/sm_debug.c now has proper sysctl mib values
+
+   - if and pf probes for FreeBSD 5.3 (Fredrik Söderblom)
+
+   - mbuf interface change for FreeBSD 5.3 (Stefan T. Peters)
+
+   - Spelling errors in INSTALL/symon.8/symux.8 (Jan Sepp)
+
+   - platform/*BSD/sm_proc transferred cpucpt as uint16 instead of double
+     (Jamie Herre)
+
+   - states_entries is a GAUGE, not a ABSOLUTE (Lars Hansson, Marco
+     Pfatschbacher)
+
+   - NetBSD/plaform.h -> platform.h (Joel Andersson)
+
+   - tsort and lorder are not needed on Linux. (Mark Enzinas)
+
+09/08/2004 - 2.67
+
+   - Matthew Gream contributed the port and probes to NetBSD and FreeBSD.
+     Probes for FreeBSD: cpu, debug, mbuf, mem and proc.  Probes for
+     NetBSD: cpu, debug, if, io, mbuf, proc and sensor.
+
+   - Added initial support for Linux: cpu and if.
+
+   - Removed net_iso from symon.c (Hans Kremers)
+
+   - Time since last update gets checked in symon.c to ensure correct
+     operation with ntp
+
+05/06/2004 - 2.66
+
+   - arguments in network streams are now bound to 15 characters. symon
+     will use more characters if specified in monitoring, but will only
+     send the first 15 over the network. (Michael)
+
+   - Textual: symux.8 and c_smrrds.sh agree on stream names.  (Okan
+     Demirmen)
+
+29/02/2004 - 2.65
+
+   - removed erroneous strlen in lex.c (Daniel Hartmeier)
+
+   - added better socket error reporting (Daniel Polak)
+
+27/02/2004 - 2.64
+
+   - Added new disk structure. symon has a single notion of "io" - the new
+     or the old depending on the machine it was built on. symux deals with
+     legacy streams and knows about "io1" (upto 3.4) and "io"
+     (3.5+). symux will accept legacy symons.
+
+   - c_smrrds.sh complains if files cannot be built. (Daniel Polak)
+
+   - symon no longer attempts reloading the configuration file when
+     privsep.
+
+   - Textual: INSTALL (Jan Sipke van der Veen), error texts in code
+     (Stephen Tesch)
+
+20/12/2003 - 2.63
+
+   - removed large char arrays on the stack that broke name resolution
+
+   - symon(8) now chroots and drop priviledges to user "_symon" (Henning
+     Brauer)
+
+   - added support for adjusting symon(8) monitoring interval (Henning
+     Brauer)
+
+   - removed typos and better starter configuration (Franciszek Holop)
+
+   - port: MESSAGEs were incorrect (Soeren Thing Andersen), PLIST
+     incomplete (Henning Brauer), HOMEPAGE in Makefile was off (Robert
+     Winder)
+
+12/10/2003 - 2.62
+
+   - removed errors in c_smrrds.sh (Henning Brauer)
+
+   - detecting sensor support was broken (Nick Forbes)
+
+03/10/2003 - 2.61
+
+   - added sensor probe
+
+   - removed symon2web from base source package. symon2web (or the new
+     syweb package) can be downloaded from the main website.
+
+   - symux churnbuffer calculation now deals with ipv6 hostnames too
+
+   - symux now allows file-less streams to be accepted
+
+   - removed bug in display of incoming client connections on symux
+
+   - symon uses group probes only for configured streams
+
+   - c_config.sh was not included in the PLIST for the symon package
+     (Andrew Dalgleish)
+
+23/03/2003 - 2.60
+
+   - sm_io was broken on sparc64
+   - ntohq functions were not detected for big endian machines
+   - c_config.sh broke on nfs mounts and pfsync
+
+   All: thanks to Henning Brauer
+
+26/02/2003 - 2.59
+
+   - mbuf probe (Daniel Hartmeier; depends on 3.2)
+   - example configuration is now installed in to symon/examples +
+     better conflicts in port's PLIST (Christian Weisgerber)
+
+24/01/2003 - 2.58
+
+   Gustavo Chamone helped find a rare bug in symon/sm_io.c. strsep()
+   would clobber stream information and make the first stream in the
+   configuration file disappear.
+
+   Daniel Hartmeier patched symon/sm_pf.c to deal with changes pf. His
+   patch should also work for previous versions of pf.
+
+10/01/2003 - 2.57
+
+   Christian Weisgerber reported that netinet/ip_ipsp.h already defines
+   htonq - fixed. Will Wainwright reported 1) a small bug in
+   test_config.php - fixed, 2) that I left out some files
+   (class_proc.inc and class_debug.inc) from the PLIST files.
+
+29/12/2002 - 2.56
+
+   Added proc and debug symon2web frontends. Debug has limited
+   useability, you are better off defining one for yourself.
+
+14/12/2002 -
+
+   Added the proc module. This can be used to retrieve accumulated
+   information about processes with the same name. A proc(httpd)
+   statement in symon.conf, for instance, will result in the reporting
+   of the number of processes called "httpd" and the amounts of cpu and
+   memory that they take.
+
+   Added em device to c_smrrds.sh - thanks to Jung.  Fixed typo in
+   SymuxClient.pm - thanks Tobias Gresch.  c_config.sh did not deal with
+   type mfs devices - thanks Dom De Vitto.
+
+29/11/2002 - 2.55
+
+   Markus Friedl reported that unresolvable ip addresses cannot be used
+   in the configuration file - fixed.
+
+   Overhauled the networking code. Everything is now ip6 aware. This
+   does mean that the ':' is no longer a keyword in the lexer;
+   i.e. 'host:port' statements should now be written as 'host
+   port' or 'host "port" port'.
+
+   Added the debug module. This can be used to retrieve debug0
+   ... debug19 variables from the kernel.
+
+08/11/2002 - 2.54
+
+   Added a perl module that allows ppl to connect to symux and do
+   something with the measurements as they come in. (I plan to drive an
+   LCD using this, but it could also be used to get, say, daily
+   bandwidth usage)
+
+   Clients of symux would not sleep after they had read and relayed data
+   symux gave to them. This could lead to one child eating up multiple
+   'semaphore slots' and starvation in other clients - fixed.
+
+25/10/2002 - 2.53
+
+   Henning Brauer suggested a datadir statement for symux configuration
+   - added.
+
+   Henning also reported that c_smrrds.sh cannot create vlan10 and
+   up. c_smrrds.sh now has a special case for pseudo-interfaces (bridge,
+   enc, faith, gif, ppp, sppp, strip, tun, vlan)
+
+   Nick Nauwelaerts helped improve dependency definitions in the port
+   Makefile.
+
+18/10/2002 - 2.52
+
+   Julien Touche reported that symon/symux do not report initial cfg
+   errors on the commandline - fixed.
+
+   Reinhard Sammer, Julien and Henning Brauer all noticed that the php
+   code needed globals - fixed. Passing by reference at call time
+   resulted in php warnings - fixed.
+
+   Henning thought it was nice to see a single machine at a time. Julien
+   wanted clickable magnification for individual graphs. Both options
+   can now be configured in datasources.inc.
+
+   Resolved a bug reported by Vincent Kessler (who also provided the fix
+   - cheers mate) in the rrdupdate call in symux - optind needs to be
+   cleared ahead of the getopt call in rrdupdate.
+
+   The Makefile.inc no longer overwrites CFLAGS. Configuration
+   directories are now taken from the environment as expected by the
+   openbsd ports system. (Thanks to Nick Nauwelaerts for pointing this
+   out)
+
+   Installation of symon now also generates a default symon.conf file if
+   the system does not already have one.
+
+   Someone at www.deadly.org pointed out that symon is no longer
+   compatible with OpenBSD 3.0 - removed claim from the website.
+
+   Added -f file switch to symon.
+
+   The lexer started parsing from character position 1 instead of 0.
+
+   symux would bomb out after a hup - fixed.
+
+14/09/2002 - 2.51
+
+   Steve Shockley reported that the port Makefile did not install rrd
+   tool. (Which is required for compilation of symux)
+
+13/09/2002 - 2.5 - kvm gone, renamed mon to symon
+
+   Rewrote io.c to obtain information via sysctl only. All kvm code is
+   now gone.
+
+   Renamed mon to symon, monmux to symux and mon2web to symon2web. I
+   liked mon better, but that name is already taken.
+
+   Cleaned up webpages to be XHTML 1.0.
+
+10/09/2002 - 2.4
+
+   Added some example pf graphs. This data is hard to plot, ideas are
+   welcome. Added better port support.
+
+09/09/2002 - Towards a better port makefile
+
+   Reworked port Makefile. It now generates a number of packages that
+   can be used to just install mon, monmux or mon2web. The KVM stuff has
+   become a special flavor of the monitor package.
+
+06/09/2002 - Cosmetics again
+
+   monmux/c_monrrds.sh:
+     - Added RRD_ARGS support. All created rrds have
+       start=epoch. Incoming data from hosts may be from an earlier time
+       than rrd creation now.
+
+   mon2web/class_[io|if|mem|cpu].inc, index.php:
+     - Rewrote argument representation of the graphs to be the same as
+       how it is configured in the configuration files.
+
+   mon2web/class_pf.inc, graph_pf.php:
+     - Initial pf support.
+
+01/09/2002 - Internal cosmetics - not released
+
+   mon/mon.c:
+     - mon packetsize is still limited by size of struct monpacket in
+       data.h:79. All other limits have been removed.
+
+   lib/data.c mon/monnet.c monmux/muxnet.c:
+     - header structure is now safely transported across the network.
+
+   lib/data.c
+     - added streamtypes b(yte) and s(hort) in preparation for new
+       streams.
+
+31/08/2002 - 2.3
+
+    Makefiles, mon/mon.c:
+     - Environment variable KVM will enable the building of a setgid
+       kmem version of the monitor. If this environment variable is not
+       present, a non priviledged monitor will be built. (Note that all
+       kvm dependant modules will fail during operation)
+
+       After today's changes, only the io probe needs kvm.
+
+    mon/if.c:
+     - obtain ifdata as per h1kari's suggestion.
+
+    mon/pf.c:
+     - global naming in sync with other probes
+     - repeated initialisation would eat up fds
+
+    Jan Sipke van der Veen
+     - version number inconcistencies (main pkg/syslog)
+
+    Daniel Hartmeier
+     - shmat usage in monmux/share.c != 64 bit safe
+     - some cpp macros missed precendence parenthesis
+
+
+29/08/2002 - 2.2
+
+    Merged contributions by Daniel Hartmeier:
+     - cpu probe had a nasty va_arg bug that only showed up on
+       big-endian machines.
+
+29/08/2002 - 2.1
+
+    Merged contributions by Daniel Hartmeier:
+     - pf probe
+     - changes to make mon compile on macppc and sparc64
+
+28/08/2002 - released 2.0
+
+    monitoring behaviour (mon) separated from storage/forwarding
+    (monmux) and picture display (mon2web). Only mon has to run with
+    kmem priviledges because of the if and io probes. Although the
+    entire package was built with portability to other OpenBSD
+    architectures in mind, it was never tested.
+
+==== unreleased ====
+
+25/07/2002 - rewrite stringptr functions in monmux to snprintf ones
+           - package it for openbsd
+           - added a crc32 algorithm in netmon and netmux
+           - added DEBUG handling in Makefiles
+           - removed a bug in monmux that made it reprocess already processed data.
+
+22/06/2002 - added shared code, upgraded networking code
+
+04/04/2002 - changed mon/monmux.conf format
+	     written manual pages
+             look at mon/cpu.c/percentages, give appropriate people credits.
+
+01/04/2002 - changed all memsets into bzero
+             all output messages have the same format now
+             write pids in /var/run
+             SIGHUP = reload configuration
+
+31/03/2002 - cleaned up source
+
+             added error reporting routines.
+
+29/03/2002 - mon and monmux no use monpacket to communicate with each
+             other. This format defines: version, lenght and crc of the traffic
+             exchanged.
+
+             mon no longer connects. monmux and mon can be started and stopped
+             independently.
+
+             monmux now checks if incoming traffic is allowed from a certain host.
+
+             added rrd write support to monmux
+
+             made c_monrrds.sh determine what files to build from environment
+
+             got mon2web up to date with mon1. changed interface layout to
+             have output as a negative area - i'm not finished with this.
+
+22/03/2002 - Added get/set preamble, still tinkering with those s(u)(n)pack
+             functions. Added one that translates it into text.
+
+06/01/2002 - Removed init and get functions from the monlib. (init functions
+             were also required in non-mon applications, not like it is
+             supposed to be :)
+
+             Next step is to rewrite the get functions into using the pack
+             function.
+
+05/01/2002 - Wrote spack and sunpack; endianess agnostic values to bytestream
+             (and back) functions. The packet format has almost been defined
+             now.
+
+24/11/2001 - Rewrote lib to KNF, OpCodes removed
+03/11/2001 - Added datatypes and rewrote readconf to use SLISTs.
+01/10/2001 - Mon configuration is read from a mon.conf.
+29/09/2001 - Lexer had trouble dealing with ip-addresses. Cleaned up the number
+             parsing code and removed a second comment reader.
