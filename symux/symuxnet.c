@@ -291,7 +291,7 @@ accept_connection(int sock)
     int clientsock;
 
     bzero(&sind, sizeof(struct sockaddr_storage));
-    len = 0;
+    len = sizeof(sind);
 
     if ((clientsock = accept(sock, (struct sockaddr *) &sind, &len)) < 0)
         fatal("failed to accept an incoming connection. (%.200s)",
