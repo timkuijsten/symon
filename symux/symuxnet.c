@@ -202,7 +202,7 @@ wait_for_traffic(struct mux * mux, struct source ** source)
 
             for (i = 0; i < AF_MAX; i++)
                 if (FD_ISSET(mux->symonsocket[i], &readset)) {
-                    if (recv_symon_packet(mux, i, source))
+                    if (recv_symon_packet(mux, mux->symonsocket[i], source))
                         return;
                 }
         } else {
@@ -215,7 +215,7 @@ wait_for_traffic(struct mux * mux, struct source ** source)
  * return 0 if no valid packet found
  */
 int
-recv_symon_packet(struct mux * mux, int socknr, struct source ** source)
+recv_symon_packet(struct mux * mux, int sock, struct source ** source)
 {
     struct sockaddr_storage sind;
     socklen_t sl;
@@ -229,7 +229,7 @@ recv_symon_packet(struct mux * mux, int socknr, struct source ** source)
     do {
         sl = sizeof(sind);
 
-        size = recvfrom(mux->symonsocket[socknr],
+        size = recvfrom(sock,
                         (mux->packet.data + received),
                         (mux->packet.size - received),
                         0, (struct sockaddr *) &sind, &sl);
