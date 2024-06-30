@@ -137,6 +137,11 @@ void init_flukso(struct stream *);
 void gets_flukso(void);
 int get_flukso(char *, int, struct stream *);
 
+/* sm_wg.c */
+extern void init_wg(struct stream *);
+extern void gets_wg(void);
+extern int get_wg(char *, int, struct stream *);
+
 __END_DECLS
 
 #endif                          /* _SYMON_SYMON_H */
