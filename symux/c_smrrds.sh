@@ -295,6 +295,14 @@ io1_*.rrd)
 	DS:bytes:COUNTER:$INTERVAL:U:U
     ;;
 
+rtt_*.rrd)
+    # Build TCP RTT files
+    create_rrd $i \
+	DS:rtt:GAUGE:$INTERVAL:0:U \
+	DS:rttvar:GAUGE:$INTERVAL:0:U \
+	DS:errors:COUNTER:$INTERVAL:0:U
+    ;;
+
 smart_*.rrd)
     # Build smart files
     create_rrd $i \

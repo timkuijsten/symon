@@ -112,6 +112,10 @@ insert_filename(char *path, int maxlen, int type, char *args)
         ts = "proc_";
         ta = args;
         break;
+    case MT_RTT:
+        ts = "rtt_";
+        ta = args;
+        break;
     case MT_SENSOR:
         ts = "sensor_";
         ta = args;
@@ -245,6 +249,7 @@ read_source(struct sourcelist * sol, struct lex * l, int filecheck)
                 case LXT_PF:
                 case LXT_PFQ:
                 case LXT_PROC:
+                case LXT_RTT:
                 case LXT_SENSOR:
                 case LXT_SMART:
                 case LXT_LOAD:
@@ -291,7 +296,7 @@ read_source(struct sourcelist * sol, struct lex * l, int filecheck)
                 case LXT_COMMA:
                     break;
                 default:
-                    parse_error(l, "{cpu|cpuiow|df|if|if1|io|io1|mem|mem1|pf|pfq|mbuf|debug|proc|sensor|smart|load|flukso|wg}");
+                    parse_error(l, "{cpu|cpuiow|df|if|if1|io|io1|mem|mem1|pf|pfq|mbuf|debug|proc|sensor|smart|load|flukso|rtt|wg}");
                     return 0;
 
                     break;
@@ -392,6 +397,7 @@ read_source(struct sourcelist * sol, struct lex * l, int filecheck)
             case LXT_PF:
             case LXT_PFQ:
             case LXT_PROC:
+            case LXT_RTT:
             case LXT_SENSOR:
             case LXT_SMART:
             case LXT_LOAD:

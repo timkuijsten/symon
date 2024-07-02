@@ -142,6 +142,11 @@ extern void init_wg(struct stream *);
 extern void gets_wg(void);
 extern int get_wg(char *, int, struct stream *);
 
+/* sm_rtt.c */
+extern void init_rtt(struct stream *);
+extern void gets_rtt(void);
+extern int get_rtt(char *, int, struct stream *);
+
 __END_DECLS
 
 #endif                          /* _SYMON_SYMON_H */

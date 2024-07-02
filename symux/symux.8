@@ -119,7 +119,7 @@ resources    = resource [ version ] ["(" argument ")"]
                [ ","|" " resources ]
 resource     = "cpu" | "cpuiow" | "debug" | "df" | "flukso" |
                "if" | "io" | "load" | "mbuf" | "mem" | "pf" |
-               "pfq" | "proc" | "sensor" | "smart" | "wg"
+               "pfq" | "proc" | "sensor" | "smart" | "rtt" | "wg"
 version      = number
 argument     = number | interfacename | diskname
 datadir-stmt = "datadir" dirname
@@ -276,6 +276,9 @@ drop_packets ). Values are 64 bit unsigned integers.
 .It proc
 Process statistics ( number : uticks : sticks : iticks : cpusec : cpupct :
 procsz : rsssz ).
+.It rtt
+TCP Round Trip Time ( rtt : rttvar ).
+Values are 32 bit unsigned integers.
 .It sensor
 Single sensor measurement offered with 7.6 precision. Value depends on sensor
 type.
