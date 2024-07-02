@@ -181,6 +181,10 @@ exithandler(int s)
     exit(1);
 }
 void
+pipehandler(int s)
+{
+}
+void
 huphandler(int s)
 {
     info("hup received");
@@ -294,6 +298,7 @@ main(int argc, char *argv[])
     signal(SIGINT, exithandler);
     signal(SIGQUIT, exithandler);
     signal(SIGTERM, exithandler);
+    signal(SIGPIPE, pipehandler);
 
     /* prepare crc32 */
     init_crc32();
