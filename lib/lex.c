@@ -94,6 +94,7 @@ static struct {
     { "pfq", LXT_PFQ },
     { "port", LXT_PORT },
     { "proc", LXT_PROC },
+    { "rtt", LXT_RTT },
     { "second", LXT_SECOND },
     { "seconds", LXT_SECONDS },
     { "sensor", LXT_SENSOR },
