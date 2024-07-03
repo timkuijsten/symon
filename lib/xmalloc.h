@@ -21,6 +21,7 @@
 __BEGIN_DECLS
 void *xmalloc(size_t);
 void *xrealloc(void *, size_t);
+void *xreallocarray(void *, size_t, size_t);
 void xfree(void *);
 char *xstrdup(const char *);
 __END_DECLS
