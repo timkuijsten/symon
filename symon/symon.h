@@ -147,6 +147,10 @@ extern void init_rtt(struct stream *);
 extern void gets_rtt(void);
 extern int get_rtt(char *, int, struct stream *);
 
+/* sm_time.c */
+extern void init_time(struct stream *);
+extern int get_time(char *, int, struct stream *);
+
 __END_DECLS
 
 #endif                          /* _SYMON_SYMON_H */

@@ -166,8 +166,9 @@ SLIST_HEAD(muxlist, mux);
 #define MT_FLUKSO 17
 #define MT_WG     18
 #define MT_RTT    19
-#define MT_TEST   20
-#define MT_EOT    21
+#define MT_TIME   20
+#define MT_TEST   21
+#define MT_EOT    22
 
 /*
  * Unpacking of incoming packets is done via a packedstream structure. This
@@ -366,6 +367,9 @@ struct packedstream {
             u_int32_t rttvar;
             u_int16_t errors;
         }      ps_rtt;
+        struct {
+            u_int32_t nsec; /* nanoseconds */
+        }      ps_time;
     }     data;
 };
 
