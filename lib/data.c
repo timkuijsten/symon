@@ -115,6 +115,7 @@ struct {
     { MT_FLUKSO, "D" },
     { MT_WG, "LLl" },
     { MT_RTT, "lls" },
+    { MT_TIME, "l" },
     { MT_TEST, "LLLLDDDDllllssssccccbbbb" },
     { MT_EOT, "" }
 };
@@ -143,6 +144,7 @@ struct {
     { MT_FLUKSO, LXT_FLUKSO },
     { MT_WG, LXT_WG },
     { MT_RTT, LXT_RTT },
+    { MT_TIME, LXT_TIME },
     { MT_EOT, LXT_BADTOKEN }
 };
 /* parallel crc32 table */
