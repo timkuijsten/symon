@@ -321,7 +321,6 @@ spawn_client(int sock)
         seqnr = shm->seqnr;
 
         /* catch signals */
-        signal(SIGHUP, client_signalhandler);
         signal(SIGINT, client_signalhandler);
         signal(SIGQUIT, client_signalhandler);
         signal(SIGTERM, client_signalhandler);
