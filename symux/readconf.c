@@ -546,6 +546,12 @@ read_config_file(struct muxlist * mul, const char *filename, int filechecks)
         return 0;
     } else {
         SLIST_FOREACH(source, &sol, sources) {
+            /* convert source strings to sockaddr */
+            if (!get_source_sockaddr(source, AF_INET)) {
+                if (!get_source_sockaddr(source, AF_INET6)) {
+                    warning("cannot determine socket family for source %.200s", source->addr);
+                }
+            }
             if (SLIST_EMPTY(&source->sl)) {
                 warning("%.200s: no streams accepted for source '%.200s'",
                         l->filename, source->addr);
