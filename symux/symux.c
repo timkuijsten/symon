@@ -336,8 +336,11 @@ main(int argc, char *argv[])
     init_crc32();
 
     /* prepare sockets */
-    if (get_symon_sockets(mux) == 0)
-        fatal("no sockets could be opened for incoming symon traffic");
+    mux->symonsocket = NULL;
+    mux->symonsocketcnt = 0;
+    if (create_listeners(&mux->symonsocket, &mux->symonsocketcnt, mux->addr,
+            mux->port, SOCK_DGRAM) == 0)
+        fatal("no listeners could be created for incoming symon traffic");
 
     rrderrors = 0;
 #ifdef HAS_PLEDGE
