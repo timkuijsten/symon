@@ -280,10 +280,17 @@ main(int argc, char *argv[])
     init_crc32();
 
     /* prepare sockets */
-    if (get_symon_sockets(mux) == 0)
-        fatal("no sockets could be opened for incoming symon traffic");
-    if (get_client_socket(mux) == 0)
-        fatal("socket for client connections could not be opened");
+    mux->clientsocket = NULL;
+    mux->clientsocketcnt = 0;
+    mux->symonsocket = NULL;
+    mux->symonsocketcnt = 0;
+    if (create_listeners(&mux->clientsocket, &mux->clientsocketcnt, mux->addr,
+            mux->port, SOCK_STREAM) == 0)
+        fatal("no listeners could be created for incoming text client connections");
+
+    if (create_listeners(&mux->symonsocket, &mux->symonsocketcnt, mux->addr,
+            mux->port, SOCK_DGRAM) == 0)
+        fatal("no listeners could be created for incoming symon traffic");
 
     rrderrors = 0;
     /* main loop */
@@ -303,8 +310,19 @@ main(int argc, char *argv[])
                 free_muxlist(&mul);
                 mul = newmul;
                 mux = SLIST_FIRST(&mul);
-                get_symon_sockets(mux);
-                get_client_socket(mux);
+                mux->clientsocket = NULL;
+                mux->clientsocketcnt = 0;
+                mux->symonsocket = NULL;
+                mux->symonsocketcnt = 0;
+                if (create_listeners(&mux->symonsocket, &mux->symonsocketcnt,
+                    mux->addr, mux->port, SOCK_DGRAM) == 0)
+                    fatal("no sockets could be created for incoming symon "
+                        "traffic");
+
+                if (create_listeners(&mux->clientsocket, &mux->clientsocketcnt,
+                    mux->addr, mux->port, SOCK_STREAM) == 0)
+                    fatal("no sockets could be created for incoming text client"
+                        "connections");
                 init_symux_packet(mux);
             }
         } else {

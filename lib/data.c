@@ -864,7 +864,7 @@ void
 free_muxlist(struct muxlist * mul)
 {
     struct mux *p, *np;
-    int i;
+    size_t i;
 
     if (mul == NULL || SLIST_EMPTY(mul))
         return;
@@ -880,16 +880,18 @@ free_muxlist(struct muxlist * mul)
             xfree(p->addr);
         if (p->port != NULL)
             xfree(p->port);
-        if (p->clientsocket)
-            close(p->clientsocket);
-        if (p->symuxsocket)
-            close(p->symuxsocket);
         if (p->packet.data)
             xfree(p->packet.data);
 
-        for (i = 0; i < AF_MAX; i++)
-            if (p->symonsocket[i])
-                close(p->symonsocket[i]);
+        for (i = 0; i < p->clientsocketcnt; i++)
+            close(p->clientsocket[i]);
+
+        p->clientsocketcnt = 0;
+
+        for (i = 0; i < p->symonsocketcnt; i++)
+            close(p->symonsocket[i]);
+
+        p->symonsocketcnt = 0;
 
         free_streamlist(&p->sl);
         free_sourcelist(&p->sol);
