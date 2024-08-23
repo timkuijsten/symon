@@ -152,6 +152,16 @@ all)
     sh $this interval $INTERVAL child $config `$SYMUX -l`
     ;;
 
+cpu.rrd)
+    # Build cpu file
+    create_rrd $i \
+	DS:user:GAUGE:$INTERVAL:0:100 \
+	DS:nice:GAUGE:$INTERVAL:0:100 \
+	DS:system:GAUGE:$INTERVAL:0:100 \
+	DS:interrupt:GAUGE:$INTERVAL:0:100 \
+	DS:idle:GAUGE:$INTERVAL:0:100
+    ;;
+
 cpu[0-9]*.rrd)
     # Build cpu file
     create_rrd $i \

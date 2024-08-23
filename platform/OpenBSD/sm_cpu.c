@@ -35,6 +35,7 @@
  * user : nice : system : interrupt : idle
  *
  * This module uses the sysctl interface and can run as any user.
+ * Supports both "cpu(n)" and plain "cpu" configurations.
  */
 
 #include "conf.h"
@@ -70,19 +71,19 @@ init_cpu(struct stream *st)
         ncpu = 1;
     }
 
-    num = strtonum(st->arg, 0, SYMON_MAXCPUID - 1, &errstr);
-    if (errstr != NULL) {
-        fatal("cpu(%.200s) is invalid: %.200s", st->arg, errstr);
-    }
+    if (strlen(st->arg) > 0) {
+        num = strtonum(st->arg, 0, SYMON_MAXCPUID - 1, &errstr);
+        if (errstr != NULL) {
+            fatal("cpu(%.200s) is invalid: %.200s", st->arg, errstr);
+        }
 
-    if (ncpu > 1) {
+        if (num >= ncpu)
+            fatal("cpu(%d) is not present", num);
+
         st->parg.cp.mib[0] = CTL_KERN;
         st->parg.cp.mib[1] = KERN_CPTIME2;
         st->parg.cp.mib[2] = num;
         st->parg.cp.miblen = 3;
-        if (st->parg.cp.mib[2] >= ncpu) {
-            fatal("cpu(%d) is not present", st->parg.cp.mib[2]);
-        }
     }
 
     /* Call get_cpu once to fill the cp_old structure */
@@ -110,12 +111,17 @@ get_cpu(char *symon_buf, int maxlen, struct stream *st)
         return 0;
     }
 
-    /* sysctl will return 32 bit longs for CPTIME and 64 bit longs for CPTIME2 */
-    if (st->parg.cp.mib[1] == KERN_CPTIME) {
-        bcopy(st->parg.cp.time2, st->parg.cp.time1, sizeof(st->parg.cp.time1));
-        for (i = 0; i < CPUSTATES; i++) {
-            st->parg.cp.time2[i] = (int64_t) st->parg.cp.time1[i];
-        }
+    /*
+     * sysctl returns long for CPTIME and uint64_t for CPTIME2, nonetheless we
+     * keep working with int64_t.
+     */
+    if (sizeof(long) < sizeof(int64_t)) {
+	    if (st->parg.cp.mib[1] == KERN_CPTIME) {
+		bcopy(st->parg.cp.time2, st->parg.cp.time1, sizeof(st->parg.cp.time1));
+		for (i = 0; i < CPUSTATES; i++) {
+		    st->parg.cp.time2[i] = (int64_t)st->parg.cp.time1[i];
+		}
+	    }
     }
 
     /* convert cp_time counts to percentages */
