@@ -256,45 +256,62 @@ handlemessage(struct mux *mux, struct source *source, unsigned int *rrderrors)
 void
 wait_for_traffic(struct mux * mux, struct source ** source)
 {
-    fd_set readset;
+    fd_set allset, readset;
     unsigned int rrderrors;
-    int i;
+    size_t is;
     int socksactive;
     int maxsock;
 
+    if (SLIST_EMPTY(&mux->sol))
+        fatal("no sources configured");
+
     rrderrors = 0;
 
+    FD_ZERO(&allset);
+
+    maxsock = 0;
+
+    for (is = 0; is < mux->clientsocketcnt; is++) {
+        FD_SET(mux->clientsocket[is], &readset);
+        if (maxsock < mux->clientsocket[is])
+            maxsock = mux->clientsocket[is];
+    }
+
+    for (is = 0; is < mux->symonsocketcnt; is++) {
+        FD_SET(mux->symonsocket[is], &allset);
+        if (maxsock < mux->symonsocket[is])
+            maxsock = mux->symonsocket[is];
+    }
+
     for (;;) {
-        FD_ZERO(&readset);
+        readset = allset;
 
-        maxsock = 0;
+        socksactive = select(maxsock + 1, &readset, NULL, NULL, NULL);
+        if (socksactive == -1) {
+            if (errno == EINTR)
+                continue;
 
-        for (i = 0; i < mux->clientsocketcnt; i++) {
-            FD_SET(mux->clientsocket[i], &readset);
-            if (maxsock < mux->clientsocket[i])
-                maxsock = mux->clientsocket[i];
+            fatal("select failed: %.200s", strerror(errno));
         }
 
-        for (i = 0; i < mux->symonsocketcnt; i++) {
-            FD_SET(mux->symonsocket[i], &readset);
-            if (maxsock < mux->symonsocket[i])
-                maxsock = mux->symonsocket[i];
+        /* check tcp text listeners */
+        for (is = 0; is < mux->clientsocketcnt && socksactive > 0; is++) {
+            if (!FD_ISSET(mux->clientsocket[is], &readset))
+                continue;
+
+            spawn_client(mux->clientsocket[is]);
+            socksactive--;
         }
 
-        maxsock++;
-        socksactive = select(maxsock, &readset, NULL, NULL, NULL);
+        /* check udp symon listeners */
+        for (is = 0; is < mux->symonsocketcnt && socksactive > 0; is++) {
+            if (!FD_ISSET(mux->symonsocket[is], &readset))
+                continue;
 
-        if (socksactive != -1) {
-            for (i = 0; i < mux->clientsocketcnt; i++)
-                if (FD_ISSET(mux->clientsocket[i], &readset)) {
-                    spawn_client(mux->clientsocket[i]);
-                }
+            if (recv_symon_packet(mux, mux->symonsocket[is], source))
+                handlemessage(mux, *source, &rrderrors);
 
-            for (i = 0; i < mux->symonsocketcnt; i++)
-                if (FD_ISSET(mux->symonsocket[i], &readset)) {
-                    if (recv_symon_packet(mux, mux->symonsocket[i], source))
-                        handlemessage(mux, *source, &rrderrors);
-                }
+            socksactive--;
         }
     }
 }
