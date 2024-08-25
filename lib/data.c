@@ -294,6 +294,10 @@ setheader(char *buf, struct symonpacketheader *hph)
 
     return (p - buf);
 }
+/*
+ * The caller is responsible for the size of buf, which should be at least
+ * SYMON_HEADERSZ.
+ */
 int
 getheader(char *buf, struct symonpacketheader *hph)
 {
@@ -314,7 +318,8 @@ getheader(char *buf, struct symonpacketheader *hph)
     hph->crc = ntohl(hph->crc);
     hph->length = ntohs(hph->length);
 
-    return (p - buf);
+    assert(p - buf == SYMON_HEADERSZ);
+    return SYMON_HEADERSZ;
 }
 /*
  * Pack multiple arguments of a MT_TYPE into a network order bytestream.

@@ -49,6 +49,7 @@
 
 /* Polynominal to use for CRC generation */
 #define SYMON_CRCPOLY  0x04c11db7
+#define SYMON_HEADERSZ (sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint8_t))
 
 #ifndef ntohq
 #if BYTE_ORDER == BIG_ENDIAN
