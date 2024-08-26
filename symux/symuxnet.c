@@ -243,8 +243,10 @@ recv_symon_packet(struct mux * mux, int sock, struct source ** source)
              (received < mux->packet.size));
 
     if ((size == -1) &&
-        errno)
+        errno) {
         warning("recvfrom failed: %.200s", strerror(errno));
+        return 0;
+    }
 
     *source = find_source_sockaddr(&mux->sol, (struct sockaddr *) &sind);
 
