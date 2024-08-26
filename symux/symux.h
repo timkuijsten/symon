@@ -46,7 +46,4 @@
 /* Number of data slots for clients in shared memory */
 #define SYMUX_SHARESLOTS  20
 
-/* Number of rrd errors logged before smothering sets in */
-#define SYMUX_MAXRRDERRORS 5
-
 #endif                          /* _SYMUX_SYMUX_H */
