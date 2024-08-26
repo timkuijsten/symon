@@ -134,7 +134,7 @@ create_listeners(int **slist, size_t *scnt, char *addr, char *port,
  * loop.
  */
 static void
-handlemessage(struct mux *mux, struct source *source, unsigned int *rrderrors)
+handlemessage(struct symonpacket *packet, struct source *source, unsigned int *rrderrors)
 {
     int maxstringlen;
     int offset;
@@ -154,11 +154,11 @@ handlemessage(struct mux *mux, struct source *source, unsigned int *rrderrors)
      * the hasseling with stringptr.
      */
 
-    offset = mux->packet.offset;
+    offset = packet->offset;
     maxstringlen = shared_getmaxlen();
     /* put time:ip: into shared region */
     slot = master_forbidread();
-    timestamp = (time_t) mux->packet.header.timestamp;
+    timestamp = (time_t) packet->header.timestamp;
     stringbuf = shared_getmem(slot);
     debug("stringbuf = 0x%08x", stringbuf);
     snprintf(stringbuf, maxstringlen, "%s;", source->addr);
@@ -167,12 +167,12 @@ handlemessage(struct mux *mux, struct source *source, unsigned int *rrderrors)
     maxstringlen -= strlen(stringbuf);
     stringptr = stringbuf + strlen(stringbuf);
 
-    while (offset < mux->packet.header.length) {
+    while (offset < packet->header.length) {
         bzero(&ps, sizeof(struct packedstream));
-        if (mux->packet.header.symon_version == 1) {
-            offset += sunpack1(mux->packet.data + offset, &ps);
-        } else if (mux->packet.header.symon_version == 2) {
-            offset += sunpack2(mux->packet.data + offset, &ps);
+        if (packet->header.symon_version == 1) {
+            offset += sunpack1(packet->data + offset, &ps);
+        } else if (packet->header.symon_version == 2) {
+            offset += sunpack2(packet->data + offset, &ps);
         } else {
             debug("unsupported packet version - ignoring data");
             ps.type = MT_EOT;
@@ -309,7 +309,7 @@ wait_for_traffic(struct mux * mux, struct source ** source)
                 continue;
 
             if (recv_symon_packet(mux, mux->symonsocket[is], source))
-                handlemessage(mux, *source, &rrderrors);
+                handlemessage(&mux->packet, *source, &rrderrors);
 
             socksactive--;
         }
