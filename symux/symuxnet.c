@@ -134,7 +134,7 @@ create_listeners(int **slist, size_t *scnt, char *addr, char *port,
  * loop.
  */
 static void
-handlemessage(struct symonpacket *packet, struct source *source, unsigned int *rrderrors)
+handlemessage(struct symonpacket *packet, struct source *source)
 {
     int maxstringlen;
     int offset;
@@ -211,15 +211,9 @@ handlemessage(struct symonpacket *packet, struct source *source, unsigned int *r
                 rrd_update(4, arg_ra);
 
                 if (rrd_test_error()) {
-                    if (*rrderrors < SYMUX_MAXRRDERRORS) {
-                        (*rrderrors)++;
-                        warning("rrd_update:%.200s", rrd_get_error());
-                        warning("%.200s %.200s %.200s %.200s", arg_ra[0], arg_ra[1],
-                                arg_ra[2], arg_ra[3]);
-                        if (*rrderrors == SYMUX_MAXRRDERRORS) {
-                            warning("maximum rrd errors reached - will stop reporting them");
-                        }
-                    }
+                    warning("rrd_update:%.200s", rrd_get_error());
+                    warning("%.200s %.200s %.200s %.200s", arg_ra[0], arg_ra[1],
+                            arg_ra[2], arg_ra[3]);
                     rrd_clear_error();
                 } else {
                     if (flag_debug == 1)
@@ -257,15 +251,12 @@ void
 wait_for_traffic(struct mux * mux, struct source ** source)
 {
     fd_set allset, readset;
-    unsigned int rrderrors;
     size_t is;
     int socksactive;
     int maxsock;
 
     if (SLIST_EMPTY(&mux->sol))
         fatal("no sources configured");
-
-    rrderrors = 0;
 
     FD_ZERO(&allset);
 
@@ -309,7 +300,7 @@ wait_for_traffic(struct mux * mux, struct source ** source)
                 continue;
 
             if (recv_symon_packet(mux, mux->symonsocket[is], source))
-                handlemessage(&mux->packet, *source, &rrderrors);
+                handlemessage(&mux->packet, *source);
 
             socksactive--;
         }
