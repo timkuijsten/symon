@@ -34,6 +34,8 @@
 
 #include "data.h"
 
+#define SYMON_SSHPREFIX "ssh:"
+
 __BEGIN_DECLS
 int read_config_file(struct muxlist *, const char *, int);
 __END_DECLS

@@ -30,6 +30,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -126,6 +127,86 @@ create_listeners(int **slist, size_t *scnt, char *addr, char *port,
     freeaddrinfo(res0);
 
     return nsocks;
+}
+
+/*
+ * exec ssh, does not return on success or -1 with errno set on failure.
+ */
+static int
+execssh(const struct source *source, const char *addr)
+{
+    /* keep environment */
+    return execlp("ssh", "ssh", "-n", "-o ServerAliveInterval=530",
+        addr, "nc -lu 127.0.0.1 2100", NULL);
+}
+
+/*
+ * Fork ssh(1) for source. Listen on 127.0.0.1:2100 on the remote host and
+ * duplicate stdout of the ssh process to source->sock.
+ * Return 0 on success, -1 on error.
+ */
+static int
+create_ssh_tunnel(struct source *source)
+{
+    int fd[2];
+    pid_t pid;
+
+    if (!source->usessh) {
+        warning("%s has usessh not set", source->addr);
+        return -1;
+    }
+
+    info("setup ssh tunnel to %s", source->addr);
+
+    if (pipe(fd) == -1) {
+        warning("pipe failed: %s", strerror(errno));
+        return -1;
+    }
+
+    pid = fork();
+    if (pid == -1) {
+        warning("%s: fork failed: %s", source->addr, strerror(errno));
+        close(fd[0]);
+        close(fd[1]);
+        return -1;
+    }
+
+    if (pid == 0) {
+        /* child */
+        close(fd[0]);
+        if (fd[1] != STDOUT_FILENO) {
+            if (dup2(fd[1], STDOUT_FILENO) != STDOUT_FILENO)
+                fatal("dup2 for ssh stdout error:  %s", strerror(errno));
+
+            close(fd[1]);
+        }
+        execssh(source, source->addr);
+        fatal("execssh returned: %s", strerror(errno));
+    }
+
+    /* parent */
+    close(fd[1]);
+    source->sock = fd[0];
+    source->sshpid = pid;
+
+    return 0;
+}
+
+/*
+ * Fork ssh(1) for each source that has usessh set.
+ */
+void
+create_ssh_tunnels(struct mux *mux)
+{
+    struct source *source;
+
+    SLIST_FOREACH(source, &mux->sol, sources) {
+        if (!source->usessh)
+            continue;
+
+        if (create_ssh_tunnel(source) == -1)
+                warning("%s: could not create ssh tunnel", source->addr);
+    }
 }
 
 /*
@@ -299,6 +380,41 @@ recv_symon_packet_from_client(struct source *client)
 }
 
 /*
+ * Wait for a specific process.
+ *
+ * Return the exit status if exited, return 128 if child exited because of a
+ * signal or return -1 if interupted or an error occurred.
+ */
+static int
+reapproc(pid_t pid)
+{
+        int status;
+
+        if (pid <= 0)
+                return -1;
+
+again:
+        if (waitpid(pid, &status, 0) == -1) {
+                if (errno == EINTR)
+                        goto again;
+                return -1;
+        }
+
+        if (!WIFEXITED(status)) {
+                if (WIFSIGNALED(status)) {
+                        warning("%d terminated by signal \"%s\"",
+                                pid, strsignal(WTERMSIG(status)));
+                        return 128;
+                }
+
+                warning("unexpected status");
+                return -1;
+        }
+
+        return WEXITSTATUS(status);
+}
+
+/*
  * Wait for traffic (symon reports from a source in sourclist | clients trying to connect
  * Returns the <source> and <packet>
  * Silently forks off clienthandlers
@@ -334,6 +450,16 @@ wait_for_traffic(struct mux * mux, struct source ** source)
             maxsock = mux->symonsocket[is];
     }
 
+    /* monitor ssh sockets */
+    SLIST_FOREACH(client, &mux->sol, sources) {
+        if (client->sock == -1)
+            continue;
+
+        FD_SET(client->sock, &allset);
+        if (maxsock < client->sock)
+            maxsock = client->sock;
+    }
+
     for (;;) {
         readset = allset;
 
@@ -356,15 +482,16 @@ wait_for_traffic(struct mux * mux, struct source ** source)
             socksactive--;
         }
 
-        /* check connected symon tcp clients */
+        /* check connected symon tcp and ssh clients */
         SLIST_FOREACH(client, &mux->sol, sources) {
             if (client->sock < 0 || !FD_ISSET(client->sock, &readset))
                 continue;
 
             if (recv_symon_packet_from_client(client) == -1) {
-                info("%s: closing fd %d", client->addr, client->sock);
+                info("%s: closing sock %d", client->addr, client->sock);
                 if (client->received > 0)
                     warning("discarding %d bytes received", client->received);
+
                 close(client->sock);
                 FD_CLR(client->sock, &allset);
                 if (client->sock == maxsock) {
@@ -377,6 +504,20 @@ wait_for_traffic(struct mux * mux, struct source ** source)
                 }
                 client->sock = -1;
                 client->received = 0;
+
+                if (client->usessh) {
+                    if (reapproc(client->sshpid) == -1)
+                        warning("could not reap ssh proc: %s", strerror(errno));
+
+                    client->sshpid = 0;
+                    if (create_ssh_tunnel(client) == -1) {
+                        warning("%s: could not restart ssh tunnel", client->addr);
+                    } else {
+                        FD_SET(client->sock, &allset);
+                        if (maxsock < client->sock)
+                            maxsock = client->sock;
+                    }
+                }
             }
 
             socksactive--;

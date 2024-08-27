@@ -119,6 +119,8 @@ struct source {
     struct symonpacket packet;
     size_t received; /* amount of data received in packet.data */
     int sock;        /* connected socket */
+    int usessh;      /* use a ssh-tunnel */
+    pid_t sshpid;
     SLIST_ENTRY(source) sources;
 };
 SLIST_HEAD(sourcelist, source);

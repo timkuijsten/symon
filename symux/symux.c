@@ -247,12 +247,15 @@ main(int argc, char *argv[])
     if (unveil(cfgfile, "r") == -1)
         fatal("unveil %s: %.200s", cfgfile, strerror(errno));
 
+    if (unveil("/usr/bin/ssh", "x") == -1)
+        fatal("unveil %s: %.200s", "/usr/bin/ssh", strerror(errno));
+
     if (unveil(NULL, NULL) == -1)
         fatal("disable unveil: %.200s", strerror(errno));
 #endif
 
 #ifdef HAS_PLEDGE
-    if (pledge("stdio dns inet rpath wpath flock", NULL) == -1)
+    if (pledge("stdio dns inet rpath wpath flock proc exec", NULL) == -1)
         fatal("pledge failed %s", strerror(errno));
 #endif
 
@@ -277,6 +280,8 @@ main(int argc, char *argv[])
     if (create_listeners(&mux->symonsocket, &mux->symonsocketcnt, mux->addr,
             mux->port, SOCK_DGRAM) == 0)
         fatal("no listeners could be created for incoming symon traffic");
+
+    create_ssh_tunnels(mux);
 
 #ifdef HAS_PLEDGE
     /* drop dns */

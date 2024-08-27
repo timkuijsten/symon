@@ -39,5 +39,6 @@ int create_listeners(int **, size_t *, char *, char *, int);
 int accept_connection(int);
 int recv_symon_packet(struct mux *, int, struct source **);
 void wait_for_traffic(struct mux *, struct source **);
+void create_ssh_tunnels(struct mux *);
 __END_DECLS
 #endif                          /* _SYMUX_SYMUXNET_H */

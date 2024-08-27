@@ -217,19 +217,31 @@ read_source(struct sourcelist * sol, struct lex * l, int filecheck)
     char path[_POSIX2_LINE_MAX];
     char sn[_POSIX2_LINE_MAX];
     char sa[_POSIX2_LINE_MAX];
+    char *p;
     int st;
     int pc;
     int fd;
+    int usessh;
 
     /* get hostname */
     lex_nexttoken(l);
-    if (!getip(l->token, AF_INET) && !getip(l->token, AF_INET6)) {
+
+    usessh = 0;
+    p = l->token;
+    if (strstr(p, SYMON_SSHPREFIX) == p) {
+        usessh = 1;
+        p = &p[strlen(SYMON_SSHPREFIX)];
+    }
+
+    if (!getip(p, AF_INET) && !getip(p, AF_INET6)) {
         warning("%.200s:%d: could not resolve '%s'",
                 l->filename, l->cline, l->token);
         return 0;
     }
 
     source = add_source(sol, res_host);
+    source->usessh = usessh;
+    source->sshpid = 0;
 
     EXPECT(l, LXT_BEGIN);
     while (lex_nexttoken(l)) {
