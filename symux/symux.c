@@ -215,6 +215,9 @@ main(int argc, char *argv[])
         exit(EX_OK);
     }
 
+    /* ensure stdin is closed */
+    close(STDIN_FILENO);
+
     setegid(getgid());
     setgid(getgid());
 
