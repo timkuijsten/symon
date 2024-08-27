@@ -1039,6 +1039,8 @@ init_symon_packet(struct mux * mux)
 void
 init_symux_packet(struct mux * mux)
 {
+    struct source *source;
+
     if (mux->packet.data)
         xfree(mux->packet.data);
 
@@ -1059,6 +1061,24 @@ init_symux_packet(struct mux * mux)
 
     mux->packet.data = xmalloc(mux->packet.size);
     bzero(mux->packet.data, mux->packet.size);
+
+    SLIST_FOREACH(source, &mux->sol, sources) {
+        source->sock = -1;
+        source->received = 0;
+        source->packet.size = bytelen_streamlist(&source->sl);
+        /*
+         * multiply by 2 to allow users to detect symon.conf/symux.conf stream
+         * configuration differences
+         */
+        if (source->packet.size < (SYMON_MAXPACKET / 2)) {
+            source->packet.size <<= 1;
+        } else {
+            source->packet.size = SYMON_MAXPACKET;
+        }
+        source->packet.data = xmalloc(source->packet.size);
+        bzero(source->packet.data, source->packet.size);
+        debug("%s packet size=%d", source->addr, source->packet.size);
+    }
 
     debug("symux packet size=%d", mux->packet.size);
 }

@@ -114,7 +114,11 @@ SLIST_HEAD(streamlist, stream);
 struct source {
     char *addr;
     struct sockaddr_storage sockaddr;
+    socklen_t sockaddrlen;
     struct streamlist sl;
+    struct symonpacket packet;
+    size_t received; /* amount of data received in packet.data */
+    int sock;        /* connected socket */
     SLIST_ENTRY(source) sources;
 };
 SLIST_HEAD(sourcelist, source);
