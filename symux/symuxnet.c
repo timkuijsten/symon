@@ -243,6 +243,84 @@ handlemessage(struct symonpacket *packet, struct source *source)
 }
 
 /*
+ * Receive data from a connected socket and try to parse a packet.
+ * Returns 1 on success, 0 on partial read, -1 on error or peer disconnect.
+ */
+static int
+recv_symon_packet_from_client(struct source *client)
+{
+    ssize_t n;
+    uint32_t crc;
+
+    n = read(client->sock,
+        client->packet.data + client->received,
+        client->packet.size - client->received);
+    if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+            return 0;
+
+        warning("%s: read failed: %.200s", client->addr, strerror(errno));
+        return -1;
+    }
+
+    if (n == 0) {
+        info("%s: disconnected", client->addr);
+        return -1;
+    }
+
+    client->received += n;
+
+    if (client->received < client->packet.size) /* partial read */
+        return 0;
+
+    /* if we only have a header, or even less, wait for more */
+    if (client->received <= SYMON_HEADERSZ)
+        return 0;
+
+    client->packet.offset = getheader(client->packet.data, &client->packet.header);
+    if (client->packet.header.length > client->packet.size) {
+        warning("%s: received oversized packet; client and server have "
+            "different stream configurations", client->addr);
+        return -1;
+    }
+
+    if (client->packet.header.length > client->received) {
+        info("partial packet: received %d bytes, packet length %d",
+            client->received, client->packet.header.length);
+        return 0; /* wait for more */
+    }
+
+    /* crc's are calculated with the crc field set to 0 */
+    crc = client->packet.header.crc;
+    client->packet.header.crc = 0;
+    setheader(client->packet.data, &client->packet.header);
+    crc ^= crc32(client->packet.data, client->packet.header.length);
+    if (crc != 0) {
+        warning("%s: crc mismatch", client->addr);
+        return -1;
+    }
+
+    if (client->packet.header.symon_version > SYMON_PACKET_VER) {
+        warning("%s: ignored packet with unsupported version: %d", client->addr,
+            client->packet.header.symon_version);
+        client->received -= client->packet.header.length;
+        memmove(client->packet.data,
+            &client->packet.data[client->packet.header.length],
+            client->received);
+        return 0;
+    }
+
+    if (flag_debug)
+        debug("%s: good data received", client->addr);
+
+    handlemessage(&client->packet, client);
+    client->received -= client->packet.header.length;
+    memmove(client->packet.data,
+        &client->packet.data[client->packet.header.length], client->received);
+    return 1;
+}
+
+/*
  * Wait for traffic (symon reports from a source in sourclist | clients trying to connect
  * Returns the <source> and <packet>
  * Silently forks off clienthandlers
@@ -250,8 +328,12 @@ handlemessage(struct symonpacket *packet, struct source *source)
 void
 wait_for_traffic(struct mux * mux, struct source ** source)
 {
+    struct sockaddr_storage peername;
+    struct source *client;
     fd_set allset, readset;
+    socklen_t len;
     size_t is;
+    int i, r, s, type;
     int socksactive;
     int maxsock;
 
@@ -287,22 +369,102 @@ wait_for_traffic(struct mux * mux, struct source ** source)
 
         /* check tcp text listeners */
         for (is = 0; is < mux->clientsocketcnt && socksactive > 0; is++) {
-            if (!FD_ISSET(mux->clientsocket[is], &readset))
+            if (mux->clientsocket[is] < 0 || !FD_ISSET(mux->clientsocket[is],
+                &readset)) {
                 continue;
+            }
 
+            /* TODO set descriptor to -1 when closed */
             spawn_client(mux->clientsocket[is]);
             socksactive--;
         }
 
-        /* check udp symon listeners */
-        for (is = 0; is < mux->symonsocketcnt && socksactive > 0; is++) {
-            if (!FD_ISSET(mux->symonsocket[is], &readset))
+        /* check connected symon tcp clients */
+        SLIST_FOREACH(client, &mux->sol, sources) {
+            if (client->sock < 0 || !FD_ISSET(client->sock, &readset))
                 continue;
 
-            if (recv_symon_packet(mux, mux->symonsocket[is], source))
-                handlemessage(&mux->packet, *source);
+            if (recv_symon_packet_from_client(client) == -1) {
+                info("%s: closing fd %d", client->addr, client->sock);
+                if (client->received > 0)
+                    warning("discarding %d bytes received", client->received);
+                close(client->sock);
+                FD_CLR(client->sock, &allset);
+                if (client->sock == maxsock) {
+                    for (i = client->sock - 1; i >= 0; i--) {
+                        if (FD_ISSET(i, &allset)) {
+                            maxsock = i;
+                            break;
+                        }
+                    }
+                }
+                client->sock = -1;
+                client->received = 0;
+            }
 
             socksactive--;
+            if (socksactive == 0)
+                break;
+        }
+
+        /* check udp/tcp symon listeners */
+        for (is = 0; is < mux->symonsocketcnt && socksactive > 0; is++) {
+            if (mux->symonsocket[is] < 0 || !FD_ISSET(mux->symonsocket[is], &readset))
+                continue;
+
+            socksactive--;
+
+            len = sizeof len;
+            if (getsockopt(mux->symonsocket[is], SOL_SOCKET, SO_TYPE, &type, &len) == -1)
+                fatal("could not obtain socket info: %.200s", strerror(errno));
+
+            if (type == SOCK_DGRAM) {
+                if (recv_symon_packet(mux, mux->symonsocket[is], source))
+                    handlemessage(&mux->packet, *source);
+
+                continue;
+            }
+
+            /* handle new connection */
+            len = sizeof peername;
+            s = accept(mux->symonsocket[is], (struct sockaddr *)&peername, &len);
+            if (s == -1) {
+                warning("accept failed: %.200s", strerror(errno));
+                continue;
+            }
+
+            client = find_source_sockaddr(&mux->sol, (struct sockaddr *)&peername);
+            get_numeric_name(&peername);
+            if (client == NULL) {
+                debug("closing connection with unconfigured source: %.200s:%.200s",
+                    res_host, res_service);
+                close(s);
+                continue;
+            }
+
+            info("%s: connected from %s:%s", client->addr, res_host,
+                res_service);
+
+            r = fcntl(s, F_GETFD, 0);
+            r = fcntl(s, F_SETFD, r | O_NONBLOCK);
+            if (r == -1)
+                fatal("%s: could not set client connection to non-blocking: %.200s",
+                    client->addr, strerror(errno));
+
+            if (client->received > 0)
+                warning("discarding %d bytes received on previous connection",
+                    client->received);
+
+            close(client->sock);
+            FD_CLR(client->sock, &allset);
+            FD_SET(s, &allset);
+            client->sock = s;
+            client->received = 0;
+            if (s > maxsock)
+                maxsock = s;
+
+            client->sockaddr = peername;
+            client->sockaddrlen = len;
         }
     }
 }
