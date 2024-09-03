@@ -120,7 +120,7 @@ init_io(struct stream *st)
 }
 
 void
-gets_io()
+gets_io(void)
 {
     int len;
     char *p;
@@ -214,7 +214,7 @@ init_io(struct stream *st)
     fatal("io module not available");
 }
 void
-gets_io()
+gets_io(void)
 {
     fatal("io module not available");
 }
