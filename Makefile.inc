@@ -2,7 +2,7 @@ V=2.88
 
 AR?=	ar
 CC?=	cc
-CFLAGS+=-Wall -Wpedantic
+CFLAGS+=-Wall -Wpedantic -Wextra -Wno-unused-parameter -Werror
 INSTALL?=install
 LORDER?=lorder
 TSORT?=tsort
