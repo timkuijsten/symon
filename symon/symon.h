@@ -122,6 +122,7 @@ extern void gets_df(void);
 extern int get_df(char *, int, struct stream *);
 
 /* sm_smart.c */
+extern void privinit_smart(struct stream *);
 extern void init_smart(struct stream *);
 extern void gets_smart(void);
 extern int get_smart(char *, int, struct stream *);
