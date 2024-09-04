@@ -21,6 +21,12 @@
 
 #define MAX_PATH_LEN PATH_MAX
 
+struct usir {
+    uint64_t utime_usec; /* user */
+    uint64_t stime_usec; /* sys  */
+    uint64_t rtime_usec; /* real */
+};
+
 union stream_parg {
     struct {
         long time1[CPUSTATES];
@@ -39,6 +45,16 @@ union stream_parg {
         int mib[5];
     } sn;
     int smart;
+    struct {
+        /* measurement 1 and 2 used in alternate fashion */
+        struct usir m1;
+        struct usir m2;
+        double cpu_pcti;
+        int cnt;    /* number of processes */
+        int epoch;
+        uint32_t mem_procsize; /* text, data and stack in bytes */
+        uint32_t mem_rss;
+    } proc;
 };
 
 #endif

@@ -101,7 +101,7 @@ struct {
     { MT_IF1, "llllllllll" },
     { MT_PF, "LLLLLLLLLLLLLLLLLLLLLL" },
     { MT_DEBUG, "llllllllllllllllllll" },
-    { MT_PROC, "lLLLlcll" },
+    { MT_PROC, "llllcll" },
     { MT_MBUF, "lllllllllllllll" },
     { MT_SENSOR, "D" },
     { MT_IO2, "LLLLL" },

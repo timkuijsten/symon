@@ -228,10 +228,13 @@ debug.rrd)
 proc_*.rrd)
     # Build proc file
     create_rrd $i \
-	DS:number:GAUGE:$INTERVAL:0:U DS:uticks:COUNTER:$INTERVAL:0:U \
-	DS:sticks:COUNTER:$INTERVAL:0:U DS:iticks:COUNTER:$INTERVAL:0:U \
-	DS:cpusec:GAUGE:$INTERVAL:0:U DS:cpupct:GAUGE:$INTERVAL:0:100 \
-	DS:procsz:GAUGE:$INTERVAL:0:U DS:rsssz:GAUGE:$INTERVAL:0:U
+        DS:number:GAUGE:$INTERVAL:0:U \
+        DS:usrusec:GAUGE:$INTERVAL:0:U \
+        DS:sysusec:GAUGE:$INTERVAL:0:U \
+        DS:totusec:GAUGE:$INTERVAL:0:U \
+        DS:cpupct:GAUGE:$INTERVAL:0:100 \
+        DS:procsz:GAUGE:$INTERVAL:0:U \
+        DS:rssz:GAUGE:$INTERVAL:0:U
     ;;
 
 pf.rrd)
