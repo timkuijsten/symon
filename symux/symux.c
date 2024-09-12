@@ -251,6 +251,11 @@ main(int argc, char *argv[])
         fatal("disable unveil: %.200s", strerror(errno));
 #endif
 
+#ifdef HAS_PLEDGE
+    if (pledge("stdio dns inet rpath wpath flock", NULL) == -1)
+        fatal("pledge failed %s", strerror(errno));
+#endif
+
     /* catch signals */
     signal(SIGINT, exithandler);
     signal(SIGQUIT, exithandler);
@@ -272,6 +277,12 @@ main(int argc, char *argv[])
     if (create_listeners(&mux->symonsocket, &mux->symonsocketcnt, mux->addr,
             mux->port, SOCK_DGRAM) == 0)
         fatal("no listeners could be created for incoming symon traffic");
+
+#ifdef HAS_PLEDGE
+    /* drop dns */
+    if (pledge("stdio inet rpath wpath flock", NULL) == -1)
+        fatal("pledge failed %s", strerror(errno));
+#endif
 
     /* main loop */
     wait_for_traffic(mux, &source);
