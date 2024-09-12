@@ -43,7 +43,4 @@
 /* Number of retries allowed in recvfrom */
 #define SYMUX_MAXREADTRIES 5
 
-/* Number of data slots for clients in shared memory */
-#define SYMUX_SHARESLOTS  20
-
 #endif                          /* _SYMUX_SYMUX_H */

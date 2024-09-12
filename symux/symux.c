@@ -51,7 +51,6 @@
 #include "symuxnet.h"
 #include "net.h"
 #include "readconf.h"
-#include "share.h"
 #include "xmalloc.h"
 
 #include "platform.h"
@@ -228,7 +227,6 @@ main(int argc, char *argv[])
 
     churnbuflen = strlen_sourcelist(&mux->sol);
     debug("size of churnbuffer = %d", churnbuflen);
-    initshare(churnbuflen);
     init_symux_packet(mux);
 
 #ifdef HAS_UNVEIL
