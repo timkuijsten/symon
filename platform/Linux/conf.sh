@@ -16,4 +16,6 @@ if grep -q "hd_drive_cmd_hdr" /usr/include/linux/hdreg.h; then
 else
     echo "#undef HAS_HDDRIVECMDHDR"
 fi
-
+if ! fgrep -qw strlcpy /usr/include/string.h; then
+    echo '#define strlcpy(x,y,z)  snprintf((x),(z),"%s", (y))'
+fi

@@ -40,6 +40,7 @@
 #include "error.h"
 #include "platform.h"
 #include "diskname.h"
+#include "conf.h"
 
 void
 initdisknamectx(struct disknamectx *c, const char *spath, char *dpath, size_t dmaxlen)
