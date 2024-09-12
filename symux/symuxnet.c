@@ -46,7 +46,6 @@
 #include "symuxnet.h"
 #include "net.h"
 #include "xmalloc.h"
-#include "share.h"
 
 __BEGIN_DECLS
 int check_crc_packet(struct symonpacket *);
@@ -138,10 +137,9 @@ handlemessage(struct symonpacket *packet, struct source *source)
 {
     int maxstringlen;
     int offset;
-    int slot;
     char *stringptr;
     char *arg_ra[4];
-    char *stringbuf;
+    char stringbuf[8096];
     struct stream *stream;
     time_t timestamp;
     struct packedstream ps;
@@ -155,17 +153,10 @@ handlemessage(struct symonpacket *packet, struct source *source)
      */
 
     offset = packet->offset;
-    maxstringlen = shared_getmaxlen();
-    /* put time:ip: into shared region */
-    slot = master_forbidread();
+    maxstringlen = sizeof stringbuf;
     timestamp = (time_t) packet->header.timestamp;
-    stringbuf = shared_getmem(slot);
-    debug("stringbuf = 0x%08x", stringbuf);
-    snprintf(stringbuf, maxstringlen, "%s;", source->addr);
 
-    /* hide this string region from rrd update */
-    maxstringlen -= strlen(stringbuf);
-    stringptr = stringbuf + strlen(stringbuf);
+    stringptr = stringbuf;
 
     while (offset < packet->header.length) {
         bzero(&ps, sizeof(struct packedstream));
@@ -182,10 +173,6 @@ handlemessage(struct symonpacket *packet, struct source *source)
         stream = find_source_stream(source, ps.type, ps.arg);
 
         if (stream != NULL) {
-            /* put type and arg in and hide from rrd */
-            snprintf(stringptr, maxstringlen, "%s:%s:", type2str(ps.type), ps.arg);
-            maxstringlen -= strlen(stringptr);
-            stringptr += strlen(stringptr);
             /* put timestamp in and show to rrd */
             snprintf(stringptr, maxstringlen, "%u", (unsigned int)timestamp);
             arg_ra[3] = stringptr;
@@ -221,11 +208,6 @@ handlemessage(struct symonpacket *packet, struct source *source)
                               arg_ra[2], arg_ra[3]);
                 }
             }
-            maxstringlen -= strlen(stringptr);
-            stringptr += strlen(stringptr);
-            snprintf(stringptr, maxstringlen, ";");
-            maxstringlen -= strlen(stringptr);
-            stringptr += strlen(stringptr);
         } else {
             debug("ignored unaccepted stream %.16s(%.16s) from %.20s", type2str(ps.type),
                   ((strlen(ps.arg) == 0) ? "0" : ps.arg), source->addr);
@@ -235,11 +217,7 @@ handlemessage(struct symonpacket *packet, struct source *source)
      * packet = parsed and in ascii in shared region -> copy to
      * clients
      */
-    snprintf(stringptr, maxstringlen, "\n");
-    stringptr += strlen(stringptr);
-    shared_setlen(slot, (stringptr - stringbuf));
     debug("churnbuffer used: %d", (stringptr - stringbuf));
-    master_permitread();
 }
 
 /*
@@ -374,8 +352,7 @@ wait_for_traffic(struct mux * mux, struct source ** source)
                 continue;
             }
 
-            /* TODO set descriptor to -1 when closed */
-            spawn_client(mux->clientsocket[is]);
+            warning("text clients not supported");
             socksactive--;
         }
 
