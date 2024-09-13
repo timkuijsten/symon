@@ -143,9 +143,16 @@ drop_privileges(int unsecure)
             seteuid(getuid()) || setuid(getuid()))
             fatal("can't drop privileges: %.200s", strerror(errno));
     } else {
-        if ((pw = getpwnam(SYMON_USER)) == NULL)
-            fatal("could not get user information for user '%.200s': %.200s",
-                  SYMON_USER, strerror(errno));
+        errno = 0;
+        if ((pw = getpwnam(SYMON_USER)) == NULL) {
+            if (errno == 0) {
+                fatal("could not get user information for user '%.200s'",
+                    SYMON_USER);
+            } else {
+                fatal("could not get user information for user '%.200s':"
+                    " %.200s", SYMON_USER, strerror(errno));
+            }
+        }
 
 #ifndef HAS_UNVEIL
         if (chroot(pw->pw_dir) < 0)
