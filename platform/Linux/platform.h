@@ -50,6 +50,12 @@ union semun {
 #define SENSOR_IN        1
 #define SENSOR_TEMP      2
 
+struct usir {
+    uint64_t utime_usec; /* user */
+    uint64_t stime_usec; /* sys  */
+    uint64_t rtime_usec; /* real */
+};
+
 union stream_parg {
     struct {
         int64_t time[CPUSTATES];
@@ -73,6 +79,16 @@ union stream_parg {
         char path[MAX_PATH_LEN];
     } sn;
     int smart;
+    struct {
+        /* measurement 1 and 2 used in alternate fashion */
+        struct usir m1;
+        struct usir m2;
+        double cpu_pcti;
+        int cnt;    /* number of processes */
+        int epoch;
+        uint64_t mem_procsize; /* text, data and stack in bytes */
+        int64_t mem_rss;
+    } proc;
     char ifname[MAX_PATH_LEN];
     char flukso[MAX_PATH_LEN];
     char io[MAX_PATH_LEN];
