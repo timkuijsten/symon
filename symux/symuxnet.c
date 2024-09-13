@@ -322,12 +322,6 @@ wait_for_traffic(struct mux * mux, struct source ** source)
 
     maxsock = 0;
 
-    for (is = 0; is < mux->clientsocketcnt; is++) {
-        FD_SET(mux->clientsocket[is], &readset);
-        if (maxsock < mux->clientsocket[is])
-            maxsock = mux->clientsocket[is];
-    }
-
     for (is = 0; is < mux->symonsocketcnt; is++) {
         FD_SET(mux->symonsocket[is], &allset);
         if (maxsock < mux->symonsocket[is])
@@ -343,17 +337,6 @@ wait_for_traffic(struct mux * mux, struct source ** source)
                 continue;
 
             fatal("select failed: %.200s", strerror(errno));
-        }
-
-        /* check tcp text listeners */
-        for (is = 0; is < mux->clientsocketcnt && socksactive > 0; is++) {
-            if (mux->clientsocket[is] < 0 || !FD_ISSET(mux->clientsocket[is],
-                &readset)) {
-                continue;
-            }
-
-            warning("text clients not supported");
-            socksactive--;
         }
 
         /* check connected symon tcp clients */

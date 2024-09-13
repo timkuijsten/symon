@@ -266,14 +266,8 @@ main(int argc, char *argv[])
     init_crc32();
 
     /* prepare sockets */
-    mux->clientsocket = NULL;
-    mux->clientsocketcnt = 0;
     mux->symonsocket = NULL;
     mux->symonsocketcnt = 0;
-    if (create_listeners(&mux->clientsocket, &mux->clientsocketcnt, mux->addr,
-            mux->port, SOCK_STREAM) == 0)
-        fatal("no listeners could be created for incoming text client connections");
-
     if (create_listeners(&mux->symonsocket, &mux->symonsocketcnt, mux->addr,
             mux->port, SOCK_DGRAM) == 0)
         fatal("no listeners could be created for incoming symon traffic");

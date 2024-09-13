@@ -888,11 +888,6 @@ free_muxlist(struct muxlist * mul)
         if (p->packet.data)
             xfree(p->packet.data);
 
-        for (i = 0; i < p->clientsocketcnt; i++)
-            close(p->clientsocket[i]);
-
-        p->clientsocketcnt = 0;
-
         for (i = 0; i < p->symonsocketcnt; i++)
             close(p->symonsocket[i]);
 

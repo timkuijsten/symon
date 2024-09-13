@@ -125,12 +125,10 @@ SLIST_HEAD(sourcelist, source);
 
 struct mux {
     char *name;
-    char *addr;                 /* used for clientsocket and symonsocket */
+    char *addr;                 /* used for symonsocket */
     char *port;                 /* same same */
     char *localaddr;
     struct sourcelist sol;
-    int *clientsocket;          /* symux; incoming tcp text proxy connections */
-    size_t clientsocketcnt;
     int *symonsocket;           /* symux; incoming symon data */
     size_t symonsocketcnt;
     int symuxsocket;            /* symon; outgoing data to mux */
