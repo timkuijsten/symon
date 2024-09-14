@@ -145,6 +145,9 @@ init_proc(struct stream *st)
     info("started module proc(%s)", st->arg);
 }
 
+static char buf20[20];
+static char buf1024[1024];
+
 void
 gets_proc(void)
 {
@@ -153,8 +156,6 @@ gets_proc(void)
     struct usir *cm;
     struct dirent *dirent;
     uint64_t utime, stime;
-    char buf20[20];
-    char buf1024[1024];
     char *cmd;
     ssize_t r;
     int i, fd;
