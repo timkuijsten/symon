@@ -161,7 +161,8 @@ gets_proc(void)
     struct stream *st;
     struct usir *cm;
     struct dirent *dirent;
-    uint64_t utime, stime;
+    uint64_t utime, stime, procsize;
+    int64_t rss;
     char *cmd, *next;
     void **m, **nm;
     ssize_t r;
@@ -202,8 +203,13 @@ next:
             goto next;
 
         if (tfind(dirent->d_name, m, (int (*)(const void *, const void *))strcmp) == NULL) {
+            /* only check 25% of pids that were not tracked in the previous run */
             filterbit = iter % (sizeof filter * 8);
             if (filter[filterbit/8] & 1<<(filterbit%8)) {
+                goto next;
+            }
+            filterbit = (iter + 1) % (sizeof filter * 8);
+            if (filter[(filterbit)/8] & 1<<(filterbit%8)) {
                 goto next;
             }
         }
@@ -251,7 +257,7 @@ next:
 
         st = streams[c2s->streamidx];
 
-        if (epoch % 2) {
+        if (epoch % 2 == 0) {
             cm = &st->parg.proc.m1;
         } else {
             cm = &st->parg.proc.m2;
@@ -270,7 +276,6 @@ next:
             st->parg.proc.epoch        = epoch;
         }
 
-
         /* cpu usage - percentage since last measurement */
         /* TODO */
         //st->parg.proc.cpu_pcti += pctdouble(pp->p_pctcpu) * 100.0;
@@ -281,8 +286,8 @@ next:
                 "%lu %ld ",
                 &utime,
                 &stime, 
-                &st->parg.proc.mem_procsize,
-                &st->parg.proc.mem_rss) != 4) {
+                &procsize,
+                &rss) != 4) {
             warning("%s: could not get proc stats", cmd);
             continue;
         }
@@ -292,11 +297,13 @@ next:
 
         /* convert to usec */
         /* TODO use sysconf(_SC_CLK_TCK) */
-        cm->utime_usec += utime * 1000000 / 100;
-        cm->stime_usec += stime * 1000000 / 100;
-        cm->rtime_usec += (utime + stime) * 1000000 / 100;
-
-        st->parg.proc.cnt++;
+        cm->utime_usec += utime * (1000000U / 100);
+        cm->stime_usec += stime * (1000000U / 100);
+        cm->rtime_usec += (utime + stime) * (1000000U / 100);
+        st->parg.proc.mem_procsize += procsize;
+        st->parg.proc.mem_rss      += rss;
+        st->parg.proc.cnt          += 1;
+        info("%s %u %u %u %u %u", st->arg, cm->utime_usec, cm->stime_usec, st->parg.proc.mem_procsize, st->parg.proc.mem_rss);
 
         if (tsearch(xstrdup(dirent->d_name), nm, (int (*)(const void *, const void *))strcmp) == NULL)
             warning("%s not added", dirent->d_name);

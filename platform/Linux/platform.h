@@ -84,10 +84,10 @@ union stream_parg {
         struct usir m1;
         struct usir m2;
         double cpu_pcti;
-        int cnt;    /* number of processes */
-        int epoch;
         uint64_t mem_procsize; /* text, data and stack in bytes */
         int64_t mem_rss;
+        int cnt;    /* number of processes */
+        int epoch;
     } proc;
     char ifname[MAX_PATH_LEN];
     char flukso[MAX_PATH_LEN];
