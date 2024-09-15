@@ -79,6 +79,9 @@ static int cmdstreamcnt;
 static char *proc_buf;
 static size_t proc_bufsz;
 
+static int proc_pagesize;
+static int proc_clocktick;
+
 static int
 cmp(const void *a, const void *b)
 {
@@ -127,6 +130,13 @@ init_proc(struct stream *st)
     if (procfd == NULL)
         if ((procfd = opendir("/proc")) == NULL)
             fatal("proc(%s) cannot open /proc: %s", st->arg, strerror(errno));
+
+    proc_pagesize = sysconf(_SC_PAGESIZE);
+    proc_clocktick = sysconf(_SC_CLK_TCK);
+    if (proc_pagesize < 1)
+        abort();
+    if (proc_clocktick < 1)
+        abort();
 
     if (bsearch(st->arg, cmds, cmdstreamcnt, sizeof *cmds, matchcmd) != NULL)
         fatal("duplicate proc(%s) configured", st->arg);
@@ -292,14 +302,12 @@ next:
             continue;
         }
 
-        /* TODO use pagesize */
-        st->parg.proc.mem_rss *= 4096;
+        st->parg.proc.mem_rss *= proc_pagesize;
 
         /* convert to usec */
-        /* TODO use sysconf(_SC_CLK_TCK) */
-        cm->utime_usec += utime * (1000000U / 100);
-        cm->stime_usec += stime * (1000000U / 100);
-        cm->rtime_usec += (utime + stime) * (1000000U / 100);
+        cm->utime_usec += utime * (1000000U / proc_clocktick);
+        cm->stime_usec += stime * (1000000U / proc_clocktick);
+        cm->rtime_usec += (utime + stime) * (1000000U / proc_clocktick);
         st->parg.proc.mem_procsize += procsize;
         st->parg.proc.mem_rss      += rss;
         st->parg.proc.cnt          += 1;
