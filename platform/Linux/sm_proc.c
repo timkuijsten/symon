@@ -156,7 +156,7 @@ gets_proc(void)
     struct usir *cm;
     struct dirent *dirent;
     uint64_t utime, stime;
-    char *cmd;
+    char *cmd, *next;
     ssize_t r;
     int i, fd;
 
@@ -178,35 +178,6 @@ next:
             if (dirent->d_name[i] < '0' || dirent->d_name[i] > '9')
                 goto next;
 
-        r = snprintf(buf20, sizeof buf20, "/proc/%s/exe", dirent->d_name);
-        if (r < 0) {
-            warning("snprintf failed on %s", dirent->d_name);
-            continue;
-        }
-        if ((size_t)r >= sizeof buf20) {
-            warning("file name too long: %s", dirent->d_name);
-            continue;
-        }
-        r = readlink(buf20, buf1024, sizeof buf1024);
-        if (r < 0 || (size_t)r >= sizeof buf1024) {
-            if (errno != EACCES && errno != ENOENT)
-                warning("exe symlink %s failed: %s", buf20, strerror(errno));
-            continue;
-        }
-        buf1024[r] = '\0';
-
-        cmd = strrchr(buf1024, '/');
-        if (cmd == NULL)
-            continue;
-
-        cmd++;
-
-        c2s = bsearch(cmd, cmds, cmdstreamcnt, sizeof *cmds, matchcmd);
-        if (c2s == NULL)
-            continue;
-
-        st = streams[c2s->streamidx];
-
         r = snprintf(buf20, sizeof buf20, "/proc/%s/stat", dirent->d_name);
         if (r < 0) {
             warning("snprintf failed on %s", dirent->d_name);
@@ -218,12 +189,13 @@ next:
         }
         fd = open(buf20, O_RDONLY);
         if (fd == -1) {
-            warning("could not open %s: %s", buf20, strerror(errno));
+            if (errno != EACCES && errno != ENOENT)
+		warning("could not open %s: %s", buf20, strerror(errno));
             continue;
         }
-        r = read(fd, proc_buf, proc_bufsz - 1);
+        r = read(fd, buf1024, sizeof buf1024 - 1);
         if (r == -1) {
-            warning("could not open %s: %s", buf20, strerror(errno));
+            warning("could not read %s: %s", buf20, strerror(errno));
             close(fd);
             fd = -1;
             continue;
@@ -231,7 +203,23 @@ next:
         close(fd);
         fd = -1;
 
-        proc_buf[r] = '\0';
+        buf1024[r] = '\0';
+
+        // see proc_pid_stat(5)
+        cmd = strchr(buf1024, '(');
+        if (cmd == NULL)
+	    abort();
+	cmd++;
+
+        next = strchr(cmd, ')');
+	*next = '\0';
+	next += 2;
+
+        c2s = bsearch(cmd, cmds, cmdstreamcnt, sizeof *cmds, matchcmd);
+        if (c2s == NULL)
+            continue;
+
+        st = streams[c2s->streamidx];
 
         if (epoch % 2 == 0) {
             cm = &st->parg.proc.m1;
@@ -257,8 +245,7 @@ next:
         /* TODO */
         //st->parg.proc.cpu_pcti += pctdouble(pp->p_pctcpu) * 100.0;
 
-        // see proc_pid_stat(5)
-        if (sscanf(proc_buf, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u "
+        if (sscanf(next, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u "
                 "%lu %lu "
                 "%*d %*d %*d %*d %*d %*d %*u "
                 "%lu %ld ",
