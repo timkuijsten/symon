@@ -37,11 +37,15 @@
  * microsec.
  */
 
+#define _GNU_SOURCE
+
+#include <sys/random.h>
 #include <sys/types.h>
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <search.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -147,6 +151,8 @@ init_proc(struct stream *st)
 
 static char buf20[20];
 static char buf1024[1024];
+static uint8_t filter[256]; /* 256 bytes are interupt free */
+static void *root, *nroot; /* root and next root */
 
 void
 gets_proc(void)
@@ -157,14 +163,28 @@ gets_proc(void)
     struct dirent *dirent;
     uint64_t utime, stime;
     char *cmd, *next;
+    void **m, **nm;
     ssize_t r;
-    int i, fd;
+    int i, iter, fd, filterbit;
 
     epoch++;
 
+    if (getrandom(filter, sizeof filter, 0) == -1)
+        abort();
+
+    if (epoch % 2) {
+        m = &root;
+        nm = &nroot;
+    } else {
+        m = &nroot;
+        nm = &root;
+    }
+
+    iter = 0;
     rewinddir(procfd);
     for (;;) {
 next:
+        iter++;
         errno = 0;
         dirent = readdir(procfd);
         if (dirent == NULL) {
@@ -178,6 +198,16 @@ next:
             if (dirent->d_name[i] < '0' || dirent->d_name[i] > '9')
                 goto next;
 
+        if (i == 0)
+            goto next;
+
+        if (tfind(dirent->d_name, m, (int (*)(const void *, const void *))strcmp) == NULL) {
+            filterbit = iter % (sizeof filter * 8);
+            if (filter[filterbit/8] & 1<<(filterbit%8)) {
+                goto next;
+            }
+        }
+
         r = snprintf(buf20, sizeof buf20, "/proc/%s/stat", dirent->d_name);
         if (r < 0) {
             warning("snprintf failed on %s", dirent->d_name);
@@ -190,7 +220,7 @@ next:
         fd = open(buf20, O_RDONLY);
         if (fd == -1) {
             if (errno != EACCES && errno != ENOENT)
-		warning("could not open %s: %s", buf20, strerror(errno));
+                warning("could not open %s: %s", buf20, strerror(errno));
             continue;
         }
         r = read(fd, buf1024, sizeof buf1024 - 1);
@@ -208,12 +238,12 @@ next:
         // see proc_pid_stat(5)
         cmd = strchr(buf1024, '(');
         if (cmd == NULL)
-	    abort();
-	cmd++;
+            abort();
+        cmd++;
 
         next = strchr(cmd, ')');
-	*next = '\0';
-	next += 2;
+        *next = '\0';
+        next += 2;
 
         c2s = bsearch(cmd, cmds, cmdstreamcnt, sizeof *cmds, matchcmd);
         if (c2s == NULL)
@@ -221,7 +251,7 @@ next:
 
         st = streams[c2s->streamidx];
 
-        if (epoch % 2 == 0) {
+        if (epoch % 2) {
             cm = &st->parg.proc.m1;
         } else {
             cm = &st->parg.proc.m2;
@@ -267,7 +297,13 @@ next:
         cm->rtime_usec += (utime + stime) * 1000000 / 100;
 
         st->parg.proc.cnt++;
+
+        if (tsearch(xstrdup(dirent->d_name), nm, (int (*)(const void *, const void *))strcmp) == NULL)
+            warning("%s not added", dirent->d_name);
     }
+
+    tdestroy(*m, free);
+    *m = NULL;
 }
 
 int
