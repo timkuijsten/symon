@@ -1,0 +1,201 @@
+#!/bin/sh
+
+_usage="$(basename "$0") host"
+if [ "$#" -ne 1 ]; then
+	echo "$_usage" >&2
+	exit 1
+fi
+
+_host=$1
+
+# group all images in one <div> and add <h3> per subcategory
+# $0 host, $1 type
+subgroupimg() {
+	_host=$1
+	_type=$2
+	_i=0
+	for _f in "$@"; do
+		if ! [ -s "$_f" ]; then
+			continue
+		fi
+		_pref=$(echo "$_f" | sed 's|-[0-9]\+\.png||')
+		if [ "$_pref" != "$_prevpref" ]; then
+			_prevpref=$_pref
+			if [ "$_i" -gt 0 ]; then
+				echo '</div>'
+			fi
+			_sub=$(echo "${_f##"$_host"-"$_type"_}" | cut -d- -f1)
+			case "$_sub" in
+			cpu[0-9]*.frequency[0-9]*)
+				_sub='CPU speed'
+				;;
+			kate[0-9]*.temp[0-9]*)
+				_sub='CPU temperature'
+				;;
+			km[0-9]*.*)
+				_sub='CPU temperature'
+				;;
+			lm[0-9]*.volt[0-9]*)
+				_sub='Volt DC'
+				;;
+			lm[0-9]*.temp[0-9]*)
+				_sub='Motherboard temperature'
+				;;
+			lm[0-9]*.fan[0-9]*)
+				_sub='Fan'
+				;;
+			*[0-9]*.temp[0-9]*)
+				_sub='Temperature'
+				;;
+			*[0-9]*.volt[0-9]*)
+				_sub='Voltage'
+				;;
+			esac
+			if [ "$_sub" != "$_prevsub" ]; then
+				_prevsub=$_sub
+				echo "<h3>$_sub</h3>"
+			fi
+			echo '<div class="graphs">'
+		fi
+		echo "<img src=\"$_f\">"
+		_i=$(($_i + 1))
+	done
+	if [ "$_i" -gt 0 ]; then
+		echo '</div>'
+	fi
+}
+
+# group all images in one <div>
+groupimg() {
+	_i=0
+	for _f in "$@"; do
+		if ! [ -s "$_f" ]; then
+			continue
+		fi
+		_pref=$(echo "$_f" | sed 's|-[0-9]\+\.png||')
+		if [ "$_pref" != "$_prevpref" ]; then
+			_prevpref=$_pref
+			if [ "$_i" -gt 0 ]; then
+				echo '</div>'
+			fi
+			echo '<div class="graphs">'
+		fi
+		echo "<img src=\"$_f\">"
+		_i=$(($_i + 1))
+	done
+	if [ "$_i" -gt 0 ]; then
+		echo '</div>'
+	fi
+}
+
+exec >"$_host.html"
+
+cat <<eof
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<meta http-equiv="refresh" content="59">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+
+<div><h1>$_host</h1>
+
+<menu>
+<li><a href="#mem">mem</a></li>
+<li><a href="#load">load</a></li>
+<li><a href="#cpu">cpu</a></li>
+<li><a href="#mbuf">mbuf</a></li>
+<li><a href="#pf">pf</a></li>
+<li><a href="#if">if</a></li>
+<li><a href="#wg">wg</a></li>
+<li><a href="#rtt">rtt</a></li>
+<li><a href="#smart">smart</a></li>
+<li><a href="#io">io</a></li>
+<li><a href="#df">df</a></li>
+<li><a href="#sensor">sensor</a></li>
+<li><a href="#proc">proc</a></li>
+<li><a href="#time">symon cpu</a></li>
+</menu>
+eof
+
+echo '<h2 id="mem">mem</h2><div>'
+groupimg "$_host-mem-"*'.png'
+echo '</div>'
+
+echo '<h2 id="load">load</h2><div>'
+groupimg "$_host-load-"*'.png'
+echo '</div>'
+
+echo '<h2 id="cpu">cpu</h2><div>'
+groupimg "$_host-cpuiow"*-iow-*.png
+groupimg "$_host-cpu"*-niow-*.png
+echo '</div>'
+
+echo '<h2 id="mbuf">mbuf</h2><div>'
+groupimg "$_host-mbuf-"*'.png'
+echo '</div>'
+
+echo '<h2 id="pf">pf</h2><div>'
+groupimg "$_host-pf-"*'.png'
+echo '</div>'
+
+echo '<h2 id="if">if</h2><div>'
+subgroupimg "$_host" if "$_host-if_"*'.png'
+echo '</div>'
+
+echo '<h2 id="wg">wg</h2><div>'
+subgroupimg "$_host" wg "$_host-wg_"*'.png'
+echo '</div>'
+
+echo '<h2 id="rtt">rtt</h2><div>'
+subgroupimg "$_host" rtt "$_host-rtt_"*'.png'
+echo '</div>'
+
+echo '<h2 id="smart">smart</h2><div>'
+subgroupimg "$_host" smart "$_host-smart_"*'.png'
+echo '</div>'
+
+echo '<h2 id="io">io</h2><div>'
+subgroupimg "$_host" io "$_host-io_"*'.png'
+echo '</div>'
+
+echo '<h2 id="df">df</h2><div>'
+subgroupimg "$_host" df "$_host-df_"*'.png'
+echo '</div>'
+
+echo '<h2 id="sensor">sensor</h2><div>'
+subgroupimg "$_host" sensor "$_host-sensor_"*'.png'
+echo '</div>'
+
+echo '<h2 id="proc">proc</h2><div>'
+subgroupimg "$_host" proc "$_host-proc_"*'.png'
+echo '</div>'
+
+echo '<h2 id="time">symon cpu</h2><div>'
+groupimg "$_host-time-"*'.png'
+echo '</div>'
+
+cat <<'eof'
+</div>
+
+<menu>
+<li><a href="#mem">mem</a></li>
+<li><a href="#load">load</a></li>
+<li><a href="#cpu">cpu</a></li>
+<li><a href="#mbuf">mbuf</a></li>
+<li><a href="#pf">pf</a></li>
+<li><a href="#if">if</a></li>
+<li><a href="#wg">wg</a></li>
+<li><a href="#rtt">rtt</a></li>
+<li><a href="#smart">smart</a></li>
+<li><a href="#io">io</a></li>
+<li><a href="#df">df</a></li>
+<li><a href="#sensor">sensor</a></li>
+<li><a href="#proc">proc</a></li>
+<li><a href="#time">symon cpu</a></li>
+</menu>
+</body></html>
+eof

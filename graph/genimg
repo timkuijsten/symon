@@ -1,0 +1,1230 @@
+#!/bin/sh
+
+if [ "$#" -lt 3 ]; then
+	echo "usage: $(basename "$0") host period rrd ..." >&2
+	exit 1
+fi
+
+_host=$1
+_time=$2
+shift
+shift
+
+_tmpfile=".tmpfile.$_host.$_time"
+_timepad=$(printf "%08d" "$_time")
+_now=$(date)
+
+# create a left-adjusted, truncated, n character fixed size label
+# $1 name ; the label
+# $2 n    ; the number of characters
+fmtlabel() {
+	if [ $# -ne 2 ]; then
+		echo "usage: $0 name n" >&2
+		return 1
+	fi
+	printf "%-${2}.${2}s" "$1"
+}
+
+# $1 time in seconds
+# echo time string
+humanduration() {
+	_time=$1
+	if [ "$_time" -lt 120 ]; then
+		echo "$_time seconds"
+		return
+	fi
+
+	_time=$(($_time / 60))
+	if [ "$_time" -lt 120 ]; then
+		echo "$_time minutes"
+		return
+	fi
+
+	_time=$(($_time / 60))
+	if [ "$_time" -lt 48 ]; then
+		echo "$_time hours"
+		return
+	fi
+
+	_time=$(($_time / 24))
+	if [ "$_time" -lt 14 ]; then
+		echo "$_time days"
+		return
+	fi
+
+	_time=$(($_time / 7))
+	echo "$_time weeks"
+}
+
+escape() {
+	echo "$@" | sed 's|:|\\:|g'
+}
+
+# $_db $_time
+genload() {
+	_db=$1
+	_time=$2
+
+	rrdtool graph - \
+	  --title "$_host - load; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:load1="$_db":load1:AVERAGE \
+	  DEF:load5="$_db":load5:AVERAGE \
+	  DEF:load15="$_db":load15:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  LINE1:load1#000000:"1m\t " \
+	  GPRINT:load1:LAST:"%8.2lf" \
+	  GPRINT:load1:MIN:"%8.2lf" \
+	  GPRINT:load1:AVERAGE:"%8.2lf" \
+	  GPRINT:load1:MAX:"%8.2lf\l" \
+	  LINE1:load5#652b34:"5m\t " \
+	  GPRINT:load5:LAST:"%8.2lf" \
+	  GPRINT:load5:MIN:"%8.2lf" \
+	  GPRINT:load5:AVERAGE:"%8.2lf" \
+	  GPRINT:load5:MAX:"%8.2lf\l" \
+	  LINE1:load15#f2495c:"15m\t " \
+	  GPRINT:load15:LAST:"%8.2lf" \
+	  GPRINT:load15:MIN:"%8.2lf" \
+	  GPRINT:load15:AVERAGE:"%8.2lf" \
+	  GPRINT:load15:MAX:"%8.2lf\l"
+}
+
+# $_db $_time
+gentime() {
+	_db=$1
+	_time=$2
+
+	rrdtool graph - \
+	  --title "$_host - symon cpu time; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:usec="$_db":usec:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"symon cpu time in microseconds\l" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  LINE1:usec#2e4669:"$(fmtlabel "cpu usec" 13)" \
+	  GPRINT:usec:LAST:"%5.1lf %s" \
+	  GPRINT:usec:MIN:"%8.1lf %s" \
+	  GPRINT:usec:AVERAGE:"%8.1lf %s" \
+	  GPRINT:usec:MAX:"%8.1lf %s\l"
+}
+
+# $_db $_time
+genmem() {
+	_db=$1
+	_time=$2
+
+	rrdtool graph - \
+	  --title "$_host - mem; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  --lower-limit 0 \
+	  --rigid \
+	  DEF:real="$_db":real_total:AVERAGE \
+	  DEF:active="$_db":real_active:AVERAGE \
+	  DEF:free="$_db":free:AVERAGE \
+	  DEF:swap="$_db":swap_used:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"memory usage\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:real#5794f2:"used\t " \
+	  GPRINT:real:LAST:"%5.1lf %sB" \
+	  GPRINT:real:MIN:"%5.1lf %sB" \
+	  GPRINT:real:AVERAGE:"%5.1lf %sB" \
+	  GPRINT:real:MAX:"%5.1lf %sB\l" \
+	  AREA:free#ffcc00:"avail\t ":STACK \
+	  GPRINT:free:LAST:"%5.1lf %sB" \
+	  GPRINT:free:MIN:"%5.1lf %sB" \
+	  GPRINT:free:AVERAGE:"%5.1lf %sB" \
+	  GPRINT:free:MAX:"%5.1lf %sB\l" \
+	  LINE1:active#2e4669:"active " \
+	  GPRINT:active:LAST:"%5.1lf %sB" \
+	  GPRINT:active:MIN:"%5.1lf %sB" \
+	  GPRINT:active:AVERAGE:"%5.1lf %sB" \
+	  GPRINT:active:MAX:"%5.1lf %sB\l" \
+	  AREA:swap#f2495c:"swap\t " \
+	  GPRINT:swap:LAST:"%5.1lf %sB" \
+	  GPRINT:swap:MIN:"%5.1lf %sB" \
+	  GPRINT:swap:AVERAGE:"%5.1lf %sB" \
+	  GPRINT:swap:MAX:"%5.1lf %sB\l"
+}
+
+# $_db $_time
+genmbufbytes() {
+	_db=$1
+	_time=$2
+
+
+	rrdtool graph - \
+	  --title "$_host - mbuf bytes; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:totmem="$_db":totmem:AVERAGE \
+	  DEF:totpct="$_db":totpct:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"kernel network memory bytes\l" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  LINE1:totmem#0066b3:"$(fmtlabel "mem used" 13)" \
+	  GPRINT:totmem:LAST:"%7.1lf %sB" \
+	  GPRINT:totmem:MIN:"%7.1lf %sB" \
+	  GPRINT:totmem:AVERAGE:"%7.1lf %sB" \
+	  GPRINT:totmem:MAX:"%7.1lf %sB\l" \
+	  LINE1:totpct#000000:"$(fmtlabel "mem used %" 13)" \
+	  GPRINT:totpct:LAST:"%5.0lf %%" \
+	  GPRINT:totpct:MIN:"%8.0lf %%" \
+	  GPRINT:totpct:AVERAGE:"%8.0lf %%" \
+	  GPRINT:totpct:MAX:"%8.0lf %%\l"
+}
+
+# $_db $_time
+genmbufcount() {
+	_db=$1
+	_time=$2
+
+
+	rrdtool graph - \
+	  --title "$_host - mbuf count; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:pgtotal="$_db":pgtotal:AVERAGE \
+	  DEF:pgused="$_db":pgused:AVERAGE \
+	  DEF:totmbufs="$_db":totmbufs:AVERAGE \
+	  DEF:mt_data="$_db":mt_data:AVERAGE \
+	  DEF:mt_oobdata="$_db":mt_oobdata:AVERAGE \
+	  DEF:mt_control="$_db":mt_control:AVERAGE \
+	  DEF:mt_header="$_db":mt_header:AVERAGE \
+	  DEF:mt_ftable="$_db":mt_ftable:AVERAGE \
+	  DEF:mt_soname="$_db":mt_soname:AVERAGE \
+	  DEF:mt_soopts="$_db":mt_soopts:AVERAGE \
+	  DEF:m_drops="$_db":m_drops:AVERAGE \
+	  DEF:m_wait="$_db":m_wait:AVERAGE \
+	  DEF:m_drain="$_db":m_drain:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"kernel network memory\l" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  LINE1:pgtotal#00cc00:"$(fmtlabel "total # mbufs" 13)" \
+	  GPRINT:pgtotal:LAST:"%5.0lf" \
+	  GPRINT:pgtotal:MIN:"%10.0lf" \
+	  GPRINT:pgtotal:AVERAGE:"%10.0lf" \
+	  GPRINT:pgtotal:MAX:"%10.0lf\l" \
+	  LINE1:pgused#2e4669:"$(fmtlabel " alive" 13)" \
+	  GPRINT:pgused:LAST:"%5.0lf" \
+	  GPRINT:pgused:MIN:"%10.0lf" \
+	  GPRINT:pgused:AVERAGE:"%10.0lf" \
+	  GPRINT:pgused:MAX:"%10.0lf\l" \
+	  LINE1:totmbufs#ffcc00:"$(fmtlabel "  mbufpl" 13)" \
+	  GPRINT:totmbufs:LAST:"%5.0lf" \
+	  GPRINT:totmbufs:MIN:"%10.0lf" \
+	  GPRINT:totmbufs:AVERAGE:"%10.0lf" \
+	  GPRINT:totmbufs:MAX:"%10.0lf\l" \
+	  LINE1:mt_data#ff8000:"$(fmtlabel "   data" 13)" \
+	  GPRINT:mt_data:LAST:"%5.0lf" \
+	  GPRINT:mt_data:MIN:"%10.0lf" \
+	  GPRINT:mt_data:AVERAGE:"%10.0lf" \
+	  GPRINT:mt_data:MAX:"%10.0lf\l" \
+	  LINE1:mt_oobdata#f2495c:"$(fmtlabel "   oob data" 13)" \
+	  GPRINT:mt_oobdata:LAST:"%5.0lf" \
+	  GPRINT:mt_oobdata:MIN:"%10.0lf" \
+	  GPRINT:mt_oobdata:AVERAGE:"%10.0lf" \
+	  GPRINT:mt_oobdata:MAX:"%10.0lf\l" \
+	  LINE1:mt_control#990099:"$(fmtlabel "   ctrl data" 13)" \
+	  GPRINT:mt_control:LAST:"%5.0lf" \
+	  GPRINT:mt_control:MIN:"%10.0lf" \
+	  GPRINT:mt_control:AVERAGE:"%10.0lf" \
+	  GPRINT:mt_control:MAX:"%10.0lf\l" \
+	  LINE1:mt_header#73bf69:"$(fmtlabel "   pkt headers" 13)" \
+	  GPRINT:mt_header:LAST:"%5.0lf" \
+	  GPRINT:mt_header:MIN:"%10.0lf" \
+	  GPRINT:mt_header:AVERAGE:"%10.0lf" \
+	  GPRINT:mt_header:MAX:"%10.0lf\l" \
+	  LINE1:mt_ftable#652b34:"$(fmtlabel "   fragments" 13)" \
+	  GPRINT:mt_ftable:LAST:"%5.0lf" \
+	  GPRINT:mt_ftable:MIN:"%10.0lf" \
+	  GPRINT:mt_ftable:AVERAGE:"%10.0lf" \
+	  GPRINT:mt_ftable:MAX:"%10.0lf\l" \
+	  LINE1:mt_soname#5794f2:"$(fmtlabel "   sockname" 13)" \
+	  GPRINT:mt_soname:LAST:"%5.0lf" \
+	  GPRINT:mt_soname:MIN:"%10.0lf" \
+	  GPRINT:mt_soname:AVERAGE:"%10.0lf" \
+	  GPRINT:mt_soname:MAX:"%10.0lf\l" \
+	  LINE1:mt_soopts#330099:"$(fmtlabel "   sockopts" 13)" \
+	  GPRINT:mt_soopts:LAST:"%5.0lf" \
+	  GPRINT:mt_soopts:MIN:"%10.0lf" \
+	  GPRINT:mt_soopts:AVERAGE:"%10.0lf" \
+	  GPRINT:mt_soopts:MAX:"%10.0lf\l" \
+	  LINE1:m_drops#ffaa00:"$(fmtlabel "mem denied" 13)" \
+	  GPRINT:m_drops:LAST:"%5.0lf" \
+	  GPRINT:m_drops:MIN:"%10.0lf" \
+	  GPRINT:m_drops:AVERAGE:"%10.0lf" \
+	  GPRINT:m_drops:MAX:"%10.0lf\l" \
+	  LINE1:m_wait#ff8800:"$(fmtlabel "mem delayed" 13)" \
+	  GPRINT:m_wait:LAST:"%5.0lf" \
+	  GPRINT:m_wait:MIN:"%10.0lf" \
+	  GPRINT:m_wait:AVERAGE:"%10.0lf" \
+	  GPRINT:m_wait:MAX:"%10.0lf\l" \
+	  LINE1:m_drain#ff6600:"$(fmtlabel "proto drains" 13)" \
+	  GPRINT:m_drain:LAST:"%5.0lf" \
+	  GPRINT:m_drain:MIN:"%10.0lf" \
+	  GPRINT:m_drain:AVERAGE:"%10.0lf" \
+	  GPRINT:m_drain:MAX:"%10.0lf\l"
+}
+
+# $_db $_time
+genpf() {
+	_db=$1
+	_time=$2
+
+	rrdtool graph - \
+	  --title "$_host - pf; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:bytes_v4_in="$_db":bytes_v4_in:AVERAGE \
+	  DEF:bytes_v4_out="$_db":bytes_v4_out:AVERAGE \
+	  DEF:bytes_v6_in="$_db":bytes_v6_in:AVERAGE \
+	  DEF:bytes_v6_out="$_db":bytes_v6_out:AVERAGE \
+	  DEF:packets_v4_in_pass="$_db":packets_v4_in_pass:AVERAGE \
+	  DEF:packets_v4_in_drop="$_db":packets_v4_in_drop:AVERAGE \
+	  DEF:packets_v4_out_pass="$_db":packets_v4_out_pass:AVERAGE \
+	  DEF:packets_v4_out_drop="$_db":packets_v4_out_drop:AVERAGE \
+	  DEF:packets_v6_in_pass="$_db":packets_v6_in_pass:AVERAGE \
+	  DEF:packets_v6_in_drop="$_db":packets_v6_in_drop:AVERAGE \
+	  DEF:packets_v6_out_pass="$_db":packets_v6_out_pass:AVERAGE \
+	  DEF:packets_v6_out_drop="$_db":packets_v6_out_drop:AVERAGE \
+	  DEF:states_entries="$_db":states_entries:AVERAGE \
+	  DEF:states_searches="$_db":states_searches:AVERAGE \
+	  DEF:states_inserts="$_db":states_inserts:AVERAGE \
+	  DEF:states_removals="$_db":states_removals:AVERAGE \
+	  DEF:counters_match="$_db":counters_match:AVERAGE \
+	  DEF:counters_badoffset="$_db":counters_badoffset:AVERAGE \
+	  DEF:counters_fragment="$_db":counters_fragment:AVERAGE \
+	  DEF:counters_short="$_db":counters_short:AVERAGE \
+	  DEF:counters_normalize="$_db":counters_normalize:AVERAGE \
+	  DEF:counters_memory="$_db":counters_memory:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  COMMENT:"bytes\l" \
+	  LINE1:bytes_v4_in#d6000c:"$(fmtlabel "  v4 in" 13)" \
+	  GPRINT:bytes_v4_in:LAST:"%5.0lf" \
+	  GPRINT:bytes_v4_in:MIN:"%10.0lf" \
+	  GPRINT:bytes_v4_in:AVERAGE:"%10.0lf" \
+	  GPRINT:bytes_v4_in:MAX:"%10.0lf\l" \
+	  LINE1:bytes_v4_out#d6000c:"$(fmtlabel "  v4 out" 13)" \
+	  GPRINT:bytes_v4_out:LAST:"%5.0lf" \
+	  GPRINT:bytes_v4_out:MIN:"%10.0lf" \
+	  GPRINT:bytes_v4_out:AVERAGE:"%10.0lf" \
+	  GPRINT:bytes_v6_out:MAX:"%10.0lf\l" \
+	  LINE1:bytes_v6_in#d6000c:"$(fmtlabel "  v6 in" 13)" \
+	  GPRINT:bytes_v6_in:LAST:"%5.0lf" \
+	  GPRINT:bytes_v6_in:MIN:"%10.0lf" \
+	  GPRINT:bytes_v6_in:AVERAGE:"%10.0lf" \
+	  GPRINT:bytes_v6_in:MAX:"%10.0lf\l" \
+	  LINE1:bytes_v6_out#d6000c:"$(fmtlabel "  v6 out" 13)" \
+	  GPRINT:bytes_v6_out:LAST:"%5.0lf" \
+	  GPRINT:bytes_v6_out:MIN:"%10.0lf" \
+	  GPRINT:bytes_v6_out:AVERAGE:"%10.0lf" \
+	  GPRINT:bytes_v6_out:MAX:"%10.0lf\l" \
+	  COMMENT:"packets\l" \
+	  LINE1:packets_v4_in_pass#d6000c:"$(fmtlabel "  v4 in pass" 13)" \
+	  GPRINT:packets_v4_in_pass:LAST:"%5.0lf" \
+	  GPRINT:packets_v4_in_pass:MIN:"%10.0lf" \
+	  GPRINT:packets_v4_in_pass:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v4_in_pass:MAX:"%10.0lf\l" \
+	  LINE1:packets_v4_in_drop#d6000c:"$(fmtlabel "  v4 in drop" 13)" \
+	  GPRINT:packets_v4_in_drop:LAST:"%5.0lf" \
+	  GPRINT:packets_v4_in_drop:MIN:"%10.0lf" \
+	  GPRINT:packets_v4_in_drop:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v4_in_drop:MAX:"%10.0lf\l" \
+	  LINE1:packets_v4_out_pass#d6000c:"$(fmtlabel "  v4 out pass" 13)" \
+	  GPRINT:packets_v4_out_pass:LAST:"%5.0lf" \
+	  GPRINT:packets_v4_out_pass:MIN:"%10.0lf" \
+	  GPRINT:packets_v4_out_pass:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v4_out_pass:MAX:"%10.0lf\l" \
+	  LINE1:packets_v4_out_drop#d6000c:"$(fmtlabel "  v4 out drop" 13)" \
+	  GPRINT:packets_v4_out_drop:LAST:"%5.0lf" \
+	  GPRINT:packets_v4_out_drop:MIN:"%10.0lf" \
+	  GPRINT:packets_v4_out_drop:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v4_out_drop:MAX:"%10.0lf\l" \
+	  LINE1:packets_v6_in_pass#d6000c:"$(fmtlabel "  v6 in pass" 13)" \
+	  GPRINT:packets_v6_in_pass:LAST:"%5.0lf" \
+	  GPRINT:packets_v6_in_pass:MIN:"%10.0lf" \
+	  GPRINT:packets_v6_in_pass:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v6_in_pass:MAX:"%10.0lf\l" \
+	  LINE1:packets_v6_in_drop#d6000c:"$(fmtlabel "  v6 in drop" 13)" \
+	  GPRINT:packets_v6_in_drop:LAST:"%5.0lf" \
+	  GPRINT:packets_v6_in_drop:MIN:"%10.0lf" \
+	  GPRINT:packets_v6_in_drop:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v6_in_drop:MAX:"%10.0lf\l" \
+	  LINE1:packets_v6_out_pass#d6000c:"$(fmtlabel "  v6 out pass" 13)" \
+	  GPRINT:packets_v6_out_pass:LAST:"%5.0lf" \
+	  GPRINT:packets_v6_out_pass:MIN:"%10.0lf" \
+	  GPRINT:packets_v6_out_pass:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v6_out_pass:MAX:"%10.0lf\l" \
+	  LINE1:packets_v6_out_drop#d6000c:"$(fmtlabel "  v6 out drop" 13)" \
+	  GPRINT:packets_v6_out_drop:LAST:"%5.0lf" \
+	  GPRINT:packets_v6_out_drop:MIN:"%10.0lf" \
+	  GPRINT:packets_v6_out_drop:AVERAGE:"%10.0lf" \
+	  GPRINT:packets_v6_out_drop:MAX:"%10.0lf\l" \
+	  COMMENT:"states\l" \
+	  LINE1:states_entries#d6000c:"$(fmtlabel "  entries" 13)" \
+	  GPRINT:states_entries:LAST:"%5.0lf" \
+	  GPRINT:states_entries:MIN:"%10.0lf" \
+	  GPRINT:states_entries:AVERAGE:"%10.0lf" \
+	  GPRINT:states_entries:MAX:"%10.0lf\l" \
+	  LINE1:states_searches#d6000c:"$(fmtlabel "  searches" 13)" \
+	  GPRINT:states_searches:LAST:"%5.0lf" \
+	  GPRINT:states_searches:MIN:"%10.0lf" \
+	  GPRINT:states_searches:AVERAGE:"%10.0lf" \
+	  GPRINT:states_searches:MAX:"%10.0lf\l" \
+	  LINE1:states_inserts#d6000c:"$(fmtlabel "  inserts" 13)" \
+	  GPRINT:states_inserts:LAST:"%5.0lf" \
+	  GPRINT:states_inserts:MIN:"%10.0lf" \
+	  GPRINT:states_inserts:AVERAGE:"%10.0lf" \
+	  GPRINT:states_inserts:MAX:"%10.0lf\l" \
+	  LINE1:states_removals#d6000c:"$(fmtlabel "  removals" 13)" \
+	  GPRINT:states_removals:LAST:"%5.0lf" \
+	  GPRINT:states_removals:MIN:"%10.0lf" \
+	  GPRINT:states_removals:AVERAGE:"%10.0lf" \
+	  GPRINT:states_removals:MAX:"%10.0lf\l" \
+	  COMMENT:"counters\l" \
+	  LINE1:counters_match#d6000c:"$(fmtlabel "  match" 13)" \
+	  GPRINT:counters_match:LAST:"%5.0lf" \
+	  GPRINT:counters_match:MIN:"%10.0lf" \
+	  GPRINT:counters_match:AVERAGE:"%10.0lf" \
+	  GPRINT:counters_match:MAX:"%10.0lf\l" \
+	  LINE1:counters_badoffset#d6000c:"$(fmtlabel "  badoffset" 13)" \
+	  GPRINT:counters_badoffset:LAST:"%5.0lf" \
+	  GPRINT:counters_badoffset:MIN:"%10.0lf" \
+	  GPRINT:counters_badoffset:AVERAGE:"%10.0lf" \
+	  GPRINT:counters_badoffset:MAX:"%10.0lf\l" \
+	  LINE1:counters_fragment#d6000c:"$(fmtlabel "  fragment" 13)" \
+	  GPRINT:counters_fragment:LAST:"%5.0lf" \
+	  GPRINT:counters_fragment:MIN:"%10.0lf" \
+	  GPRINT:counters_fragment:AVERAGE:"%10.0lf" \
+	  GPRINT:counters_fragment:MAX:"%10.0lf\l" \
+	  LINE1:counters_short#d6000c:"$(fmtlabel "  short" 13)" \
+	  GPRINT:counters_short:LAST:"%5.0lf" \
+	  GPRINT:counters_short:MIN:"%10.0lf" \
+	  GPRINT:counters_short:AVERAGE:"%10.0lf" \
+	  GPRINT:counters_short:MAX:"%10.0lf\l" \
+	  LINE1:counters_normalize#d6000c:"$(fmtlabel "  normalize" 13)" \
+	  GPRINT:counters_normalize:LAST:"%5.0lf" \
+	  GPRINT:counters_normalize:MIN:"%10.0lf" \
+	  GPRINT:counters_normalize:AVERAGE:"%10.0lf" \
+	  GPRINT:counters_normalize:MAX:"%10.0lf\l" \
+	  LINE1:counters_memory#d6000c:"$(fmtlabel "  memory" 13)" \
+	  GPRINT:counters_memory:LAST:"%5.0lf" \
+	  GPRINT:counters_memory:MIN:"%10.0lf" \
+	  GPRINT:counters_memory:AVERAGE:"%10.0lf" \
+	  GPRINT:counters_memory:MAX:"%10.0lf\l"
+}
+
+# $_db $_name $_time
+gencpuiow() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  --lower-limit 0 \
+	  --upper-limit 100 \
+	  --rigid \
+	  DEF:system="$_db":system:AVERAGE \
+	  DEF:user="$_db":user:AVERAGE \
+	  DEF:nice="$_db":nice:AVERAGE \
+	  DEF:interrupt="$_db":interrupt:AVERAGE \
+	  DEF:idle="$_db":idle:AVERAGE \
+	  DEF:iowait="$_db":iowait:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"cpu usage %\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:system#00cc00:"system " \
+	  GPRINT:system:LAST:"%8.0lf" \
+	  GPRINT:system:MIN:"%8.0lf" \
+	  GPRINT:system:AVERAGE:"%8.0lf" \
+	  GPRINT:system:MAX:"%8.0lf\l" \
+	  AREA:user#0066b3:"user\t ":STACK \
+	  GPRINT:user:LAST:"%8.0lf" \
+	  GPRINT:user:MIN:"%8.0lf" \
+	  GPRINT:user:AVERAGE:"%8.0lf" \
+	  GPRINT:user:MAX:"%8.0lf\l" \
+	  AREA:nice#ff8000:"nice\t ":STACK \
+	  GPRINT:nice:LAST:"%8.0lf" \
+	  GPRINT:nice:MIN:"%8.0lf" \
+	  GPRINT:nice:AVERAGE:"%8.0lf" \
+	  GPRINT:nice:MAX:"%8.0lf\l" \
+	  AREA:idle#ffcc00:"idle\t ":STACK \
+	  GPRINT:idle:LAST:"%8.0lf" \
+	  GPRINT:idle:MIN:"%8.0lf" \
+	  GPRINT:idle:AVERAGE:"%8.0lf" \
+	  GPRINT:idle:MAX:"%8.0lf\l" \
+	  AREA:interrupt#990099:"intr\t ":STACK \
+	  GPRINT:interrupt:LAST:"%8.0lf" \
+	  GPRINT:interrupt:MIN:"%8.0lf" \
+	  GPRINT:interrupt:AVERAGE:"%8.0lf" \
+	  GPRINT:interrupt:MAX:"%8.0lf\l" \
+	  AREA:iowait#330099:"iowait ":STACK \
+	  GPRINT:iowait:LAST:"%8.0lf" \
+	  GPRINT:iowait:MIN:"%8.0lf" \
+	  GPRINT:iowait:AVERAGE:"%8.0lf" \
+	  GPRINT:iowait:MAX:"%8.0lf\l"
+}
+
+# $_db $_name $_time
+# no iowait
+gencpuniow() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  --lower-limit 0 \
+	  --upper-limit 100 \
+	  --rigid \
+	  DEF:system="$_db":system:AVERAGE \
+	  DEF:user="$_db":user:AVERAGE \
+	  DEF:nice="$_db":nice:AVERAGE \
+	  DEF:interrupt="$_db":interrupt:AVERAGE \
+	  DEF:idle="$_db":idle:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"cpu usage %\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:system#00cc00:"system " \
+	  GPRINT:system:LAST:"%8.0lf" \
+	  GPRINT:system:MIN:"%8.0lf" \
+	  GPRINT:system:AVERAGE:"%8.0lf" \
+	  GPRINT:system:MAX:"%8.0lf\l" \
+	  AREA:user#0066b3:"user\t ":STACK \
+	  GPRINT:user:LAST:"%8.0lf" \
+	  GPRINT:user:MIN:"%8.0lf" \
+	  GPRINT:user:AVERAGE:"%8.0lf" \
+	  GPRINT:user:MAX:"%8.0lf\l" \
+	  AREA:nice#ff8000:"nice\t ":STACK \
+	  GPRINT:nice:LAST:"%8.0lf" \
+	  GPRINT:nice:MIN:"%8.0lf" \
+	  GPRINT:nice:AVERAGE:"%8.0lf" \
+	  GPRINT:nice:MAX:"%8.0lf\l" \
+	  AREA:idle#ffcc00:"idle\t ":STACK \
+	  GPRINT:idle:LAST:"%8.0lf" \
+	  GPRINT:idle:MIN:"%8.0lf" \
+	  GPRINT:idle:AVERAGE:"%8.0lf" \
+	  GPRINT:idle:MAX:"%8.0lf\l" \
+	  AREA:interrupt#990099:"irq\t ":STACK \
+	  GPRINT:interrupt:LAST:"%8.0lf" \
+	  GPRINT:interrupt:MIN:"%8.0lf" \
+	  GPRINT:interrupt:AVERAGE:"%8.0lf" \
+	  GPRINT:interrupt:MAX:"%8.0lf\l"
+}
+
+# $_db $_name $_time
+gendfblocks() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name blocks; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  --lower-limit 0 \
+	  DEF:blocks="$_db":blocks:MAX \
+	  DEF:bfree="$_db":bfree:MAX \
+	  DEF:bavail512="$_db":bavail:MAX \
+	  CDEF:bused=blocks,bfree,-,512,* \
+	  CDEF:bavail=bavail512,512,* \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_name disk usage\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:bused#5794f2:"used\t " \
+	  GPRINT:bused:LAST:"%5.1lf %sB" \
+	  GPRINT:bused:MIN:"%5.1lf %sB" \
+	  GPRINT:bused:AVERAGE:"%5.1lf %sB" \
+	  GPRINT:bused:MAX:"%5.1lf %sB\l" \
+	  LINE1:bavail#000000:"free\t ":STACK \
+	  GPRINT:bavail:LAST:"%5.1lf %sB" \
+	  GPRINT:bavail:MIN:"%5.1lf %sB" \
+	  GPRINT:bavail:AVERAGE:"%5.1lf %sB" \
+	  GPRINT:bavail:MAX:"%5.1lf %sB\l"
+}
+
+# $_db $_name $_time
+gendffiles() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name inodes; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:inodes="$_db":files:MAX \
+	  DEF:ffree="$_db":ffree:MAX \
+	  CDEF:files=inodes,ffree,- \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_name inodes\l" \
+	  COMMENT:"                     cur        min        avg         max\l" \
+	  AREA:files#5794f2:"files      " \
+	  GPRINT:files:LAST:"%9.0lf" \
+	  GPRINT:files:MIN:"%9.0lf" \
+	  GPRINT:files:AVERAGE:"%9.0lf" \
+	  GPRINT:files:MAX:"%9.0lf\l" \
+	  LINE1:ffree#000000:"inodes free":STACK \
+	  GPRINT:ffree:LAST:"%9.0lf" \
+	  GPRINT:ffree:MIN:"%9.0lf" \
+	  GPRINT:ffree:AVERAGE:"%9.0lf" \
+	  GPRINT:ffree:MAX:"%9.0lf\l"
+}
+
+# $_db $_name $_time
+gendf() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name df; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:blocks="$_db":blocks:MAX \
+	  DEF:bfree="$_db":bfree:MAX \
+	  DEF:bavail="$_db":bavail:MAX \
+	  DEF:files="$_db":files:MAX \
+	  DEF:ffree="$_db":ffree:MAX \
+	  DEF:asyncwrites="$_db":asyncwrites:MAX \
+	  DEF:syncwrites="$_db":syncwrites:MAX \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"              \t        Cur        Min         Avg        Max\l" \
+	  LINE1:blocks#000000:"512B-blocks\t" \
+	  GPRINT:blocks:LAST:"%9.0lf\l" \
+	  LINE1:bfree#652b34:"blks free   \t" \
+	  GPRINT:bfree:LAST:"%9.0lf" \
+	  GPRINT:bfree:MIN:"%9.0lf" \
+	  GPRINT:bfree:AVERAGE:"%9.0lf" \
+	  GPRINT:bfree:MAX:"%9.0lf\l" \
+	  LINE1:bavail#652b34:"blks avail \t" \
+	  GPRINT:bavail:LAST:"%9.0lf" \
+	  GPRINT:bavail:MIN:"%9.0lf" \
+	  GPRINT:bavail:AVERAGE:"%9.0lf" \
+	  GPRINT:bavail:MAX:"%9.0lf\l" \
+	  LINE1:files#652b34:"files  \t" \
+	  GPRINT:files:LAST:"%9.0lf" \
+	  GPRINT:files:MIN:"%9.0lf" \
+	  GPRINT:files:AVERAGE:"%9.0lf" \
+	  GPRINT:files:MAX:"%9.0lf\l" \
+	  LINE1:ffree#652b34:"ffree  \t" \
+	  GPRINT:ffree:LAST:"%9.0lf" \
+	  GPRINT:ffree:MIN:"%9.0lf" \
+	  GPRINT:ffree:AVERAGE:"%9.0lf" \
+	  GPRINT:ffree:MAX:"%9.0lf\l" \
+	  LINE1:asyncwrites#652b34:"asyncwrites\t" \
+	  GPRINT:asyncwrites:LAST:"%9.0lf" \
+	  GPRINT:asyncwrites:MIN:"%9.0lf" \
+	  GPRINT:asyncwrites:AVERAGE:"%9.0lf" \
+	  GPRINT:asyncwrites:MAX:"%9.0lf\l" \
+	  LINE1:syncwrites#652b34:"syncwrites\t" \
+	  GPRINT:syncwrites:LAST:"%9.0lf" \
+	  GPRINT:syncwrites:MIN:"%9.0lf" \
+	  GPRINT:syncwrites:AVERAGE:"%9.0lf" \
+	  GPRINT:syncwrites:MAX:"%9.0lf\l"
+}
+
+# $_db $_name $_time
+gensmart() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name S.M.A.R.T.; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:read_error_rate="$_db":read_error_rate:MAX \
+	  DEF:realloc_sectors="$_db":realloc_sectors:MAX \
+	  DEF:spin_retries="$_db":spin_retries:MAX \
+	  DEF:air_flow_temp="$_db":air_flow_temp:MAX \
+	  DEF:temperature="$_db":temperature:MAX \
+	  DEF:realloc="$_db":realloc:MAX \
+	  DEF:cur_pending="$_db":cur_pending:MAX \
+	  DEF:uncorr="$_db":uncorr:MAX \
+	  DEF:sread_error_rate="$_db":sread_error_rate:MAX \
+	  DEF:gsense_error_rate="$_db":gsense_error_rate:MAX \
+	  DEF:temperature2="$_db":temperature2:MAX \
+	  DEF:freefall="$_db":freefall:MAX \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_name\l" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  LINE1:realloc_sectors#d6000c:"$(fmtlabel "reallocated sectors" 13)" \
+	  GPRINT:realloc_sectors:LAST:"%5.0lf" \
+	  GPRINT:realloc_sectors:MIN:"%10.0lf" \
+	  GPRINT:realloc_sectors:AVERAGE:"%10.0lf" \
+	  GPRINT:realloc_sectors:MAX:"%10.0lf\l" \
+	  LINE1:read_error_rate#dd0f9d:"$(fmtlabel "read error rate" 13)" \
+	  GPRINT:read_error_rate:LAST:"%5.0lf" \
+	  GPRINT:read_error_rate:MIN:"%10.0lf" \
+	  GPRINT:read_error_rate:AVERAGE:"%10.0lf" \
+	  GPRINT:read_error_rate:MAX:"%10.0lf\l" \
+	  LINE1:spin_retries#0064e4:"$(fmtlabel "spin retries" 13)" \
+	  GPRINT:spin_retries:LAST:"%5.0lf" \
+	  GPRINT:spin_retries:MIN:"%10.0lf" \
+	  GPRINT:spin_retries:AVERAGE:"%10.0lf" \
+	  GPRINT:spin_retries:MAX:"%10.0lf\l" \
+	  LINE1:air_flow_temp#1d9700:"$(fmtlabel "air flow temp" 13)" \
+	  GPRINT:air_flow_temp:LAST:"%5.0lf" \
+	  GPRINT:air_flow_temp:MIN:"%10.0lf" \
+	  GPRINT:air_flow_temp:AVERAGE:"%10.0lf" \
+	  GPRINT:air_flow_temp:MAX:"%10.0lf\l" \
+	  LINE1:temperature#c49700:"$(fmtlabel "temperature" 13)" \
+	  GPRINT:temperature:LAST:"%5.0lf" \
+	  GPRINT:temperature:MIN:"%10.0lf" \
+	  GPRINT:temperature:AVERAGE:"%10.0lf" \
+	  GPRINT:temperature:MAX:"%10.0lf\l" \
+	  LINE1:realloc#00ad9c:"$(fmtlabel "realloc" 13)" \
+	  GPRINT:realloc:LAST:"%5.0lf" \
+	  GPRINT:realloc:MIN:"%10.0lf" \
+	  GPRINT:realloc:AVERAGE:"%10.0lf" \
+	  GPRINT:realloc:MAX:"%10.0lf\l" \
+	  LINE1:cur_pending#878787:"$(fmtlabel "current pending" 13)" \
+	  GPRINT:cur_pending:LAST:"%5.0lf" \
+	  GPRINT:cur_pending:MIN:"%10.0lf" \
+	  GPRINT:cur_pending:AVERAGE:"%10.0lf" \
+	  GPRINT:cur_pending:MAX:"%10.0lf\l" \
+	  LINE1:uncorr#eb6eb7:"$(fmtlabel "uncorrectables" 13)" \
+	  GPRINT:uncorr:LAST:"%5.0lf" \
+	  GPRINT:uncorr:MIN:"%10.0lf" \
+	  GPRINT:uncorr:AVERAGE:"%10.0lf" \
+	  GPRINT:uncorr:MAX:"%10.0lf\l" \
+	  LINE1:sread_error_rate#ed4a46:"$(fmtlabel "soft read error rate" 13)" \
+	  GPRINT:sread_error_rate:LAST:"%5.0lf" \
+	  GPRINT:sread_error_rate:MIN:"%10.0lf" \
+	  GPRINT:sread_error_rate:AVERAGE:"%10.0lf" \
+	  GPRINT:sread_error_rate:MAX:"%10.0lf\l" \
+	  LINE1:gsense_error_rate#70b433:"$(fmtlabel "g sense error rate" 13)" \
+	  GPRINT:gsense_error_rate:LAST:"%5.0lf" \
+	  GPRINT:gsense_error_rate:MIN:"%10.0lf" \
+	  GPRINT:gsense_error_rate:AVERAGE:"%10.0lf" \
+	  GPRINT:gsense_error_rate:MAX:"%10.0lf\l" \
+	  LINE1:temperature2#dbb32d:"$(fmtlabel "temperature 2" 13)" \
+	  GPRINT:temperature2:LAST:"%5.0lf" \
+	  GPRINT:temperature2:MIN:"%10.0lf" \
+	  GPRINT:temperature2:AVERAGE:"%10.0lf" \
+	  GPRINT:temperature2:MAX:"%10.0lf\l" \
+	  LINE1:freefall#368aeb:"$(fmtlabel "free fall protection" 13)" \
+	  GPRINT:freefall:LAST:"%5.0lf" \
+	  GPRINT:freefall:MIN:"%10.0lf" \
+	  GPRINT:freefall:AVERAGE:"%10.0lf" \
+	  GPRINT:freefall:MAX:"%10.0lf\l"
+}
+
+# $_db $_name $_time
+geniobps() {
+	_db=$(escape "$1")
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name Bps; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:rbytes="$_db":rbytes:AVERAGE \
+	  DEF:wbytes="$_db":wbytes:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_name bytes per second\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:rbytes#f2495c:"read\t " \
+	  GPRINT:rbytes:LAST:"%5.0lf %sB" \
+	  GPRINT:rbytes:MIN:"%5.0lf %sB" \
+	  GPRINT:rbytes:AVERAGE:"%5.0lf %sB" \
+	  GPRINT:rbytes:MAX:"%5.0lf %sB\l" \
+	  LINE1:wbytes#652b34:"write\t " \
+	  GPRINT:wbytes:LAST:"%5.0lf %sB" \
+	  GPRINT:wbytes:MIN:"%5.0lf %sB" \
+	  GPRINT:wbytes:AVERAGE:"%5.0lf %sB" \
+	  GPRINT:wbytes:MAX:"%5.0lf %sB\l"
+}
+
+# $_db $_name $_time
+geniotps() {
+	_db=$(escape "$1")
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name Tps; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:rxfer="$_db":rxfer:AVERAGE \
+	  DEF:wxfer="$_db":wxfer:AVERAGE \
+	  DEF:seeks="$_db":seeks:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_name transfers per second\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:rxfer#f2495c:"rxfer\t " \
+	  GPRINT:rxfer:LAST:"%8.0lf" \
+	  GPRINT:rxfer:MIN:"%8.0lf" \
+	  GPRINT:rxfer:AVERAGE:"%8.0lf" \
+	  GPRINT:rxfer:MAX:"%8.0lf \l" \
+	  LINE1:wxfer#652b34:"wxfer\t " \
+	  GPRINT:wxfer:LAST:"%8.0lf" \
+	  GPRINT:wxfer:MIN:"%8.0lf" \
+	  GPRINT:wxfer:AVERAGE:"%8.0lf" \
+	  GPRINT:wxfer:MAX:"%8.0lf \l" \
+	  LINE1:seeks#000000:"seeks\t " \
+	  GPRINT:seeks:LAST:"%8.0lf" \
+	  GPRINT:seeks:MIN:"%8.0lf" \
+	  GPRINT:seeks:AVERAGE:"%8.0lf" \
+	  GPRINT:seeks:MAX:"%8.0lf \l"
+}
+
+# $_db $_ifname $_time
+gennetbps() {
+	_db=$1
+	_ifname=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_ifname Bps; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:ibytes="$_db":ibytes:AVERAGE \
+	  DEF:obytes="$_db":obytes:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_ifname bytes per second\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:ibytes#73bf69:"in\t " \
+	  GPRINT:ibytes:LAST:"%5.0lf %sB" \
+	  GPRINT:ibytes:MIN:"%5.0lf %sB" \
+	  GPRINT:ibytes:AVERAGE:"%5.0lf %sB" \
+	  GPRINT:ibytes:MAX:"%5.0lf %sB\l" \
+	  LINE1:obytes#2e4669:"out\t " \
+	  GPRINT:obytes:LAST:"%5.0lf %sB" \
+	  GPRINT:obytes:MIN:"%5.0lf %sB" \
+	  GPRINT:obytes:AVERAGE:"%5.0lf %sB" \
+	  GPRINT:obytes:MAX:"%5.0lf %sB\l"
+}
+
+# $_db $_ifname $_time
+gennetpps() {
+	_db=$1
+	_ifname=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_ifname pps; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:ipackets="$_db":ipackets:AVERAGE \
+	  DEF:opackets="$_db":opackets:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_ifname packets per second\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:ipackets#5794f2:"in\t " \
+	  GPRINT:ipackets:LAST:"%8.0lf" \
+	  GPRINT:ipackets:MIN:"%8.0lf" \
+	  GPRINT:ipackets:AVERAGE:"%8.0lf" \
+	  GPRINT:ipackets:MAX:"%8.0lf\l" \
+	  LINE1:opackets#2e4669:"out\t " \
+	  GPRINT:opackets:LAST:"%8.0lf" \
+	  GPRINT:opackets:MIN:"%8.0lf" \
+	  GPRINT:opackets:AVERAGE:"%8.0lf" \
+	  GPRINT:opackets:MAX:"%8.0lf\l"
+}
+
+# $_db $_ifname $_time
+genneterr() {
+	_db=$1
+	_ifname=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_ifname misc; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:ierrors="$_db":ierrors:AVERAGE \
+	  DEF:oerrors="$_db":oerrors:AVERAGE \
+	  DEF:collisions="$_db":collisions:AVERAGE \
+	  DEF:drops="$_db":drops:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_ifname misc\l" \
+	  COMMENT:"                   cur       min       avg        max\l" \
+	  LINE1:ierrors#652b34:"in  error " \
+	  GPRINT:ierrors:LAST:"%8.0lf" \
+	  GPRINT:ierrors:MIN:"%8.0lf" \
+	  GPRINT:ierrors:AVERAGE:"%8.0lf" \
+	  GPRINT:ierrors:MAX:"%8.0lf\l" \
+	  LINE1:oerrors#f2495c:"out error " \
+	  GPRINT:oerrors:LAST:"%8.0lf" \
+	  GPRINT:oerrors:MIN:"%8.0lf" \
+	  GPRINT:oerrors:AVERAGE:"%8.0lf" \
+	  GPRINT:oerrors:MAX:"%8.0lf\l" \
+	  LINE1:collisions#5794f2:"collisions" \
+	  GPRINT:collisions:LAST:"%8.0lf" \
+	  GPRINT:collisions:MIN:"%8.0lf" \
+	  GPRINT:collisions:AVERAGE:"%8.0lf" \
+	  GPRINT:collisions:MAX:"%8.0lf\l" \
+	  LINE1:drops#2e4669:"drops     " \
+	  GPRINT:drops:LAST:"%8.0lf" \
+	  GPRINT:drops:MIN:"%8.0lf" \
+	  GPRINT:drops:AVERAGE:"%8.0lf" \
+	  GPRINT:drops:MAX:"%8.0lf\l"
+}
+
+# $_db $_ifname $_time
+gennetbpp() {
+	_db=$1
+	_ifname=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_ifname Bpp; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:ibytes="$_db":ibytes:AVERAGE \
+	  DEF:obytes="$_db":obytes:AVERAGE \
+	  DEF:ipackets="$_db":ipackets:AVERAGE \
+	  DEF:opackets="$_db":opackets:AVERAGE \
+	  CDEF:in=ibytes,ipackets,/ \
+	  CDEF:out=obytes,opackets,/ \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_ifname bytes per packet\l" \
+	  COMMENT:"                   cur       min       avg        max\l" \
+	  LINE1:in#5794f2:"in        " \
+	  GPRINT:in:LAST:"%8.0lf" \
+	  GPRINT:in:MIN:"%8.0lf" \
+	  GPRINT:in:AVERAGE:"%8.0lf" \
+	  GPRINT:in:MAX:"%8.0lf\l" \
+	  LINE1:out#2e4669:"out       " \
+	  GPRINT:out:LAST:"%8.0lf" \
+	  GPRINT:out:MIN:"%8.0lf" \
+	  GPRINT:out:AVERAGE:"%8.0lf" \
+	  GPRINT:out:MAX:"%8.0lf\l"
+}
+
+# $_db $_time $_name
+genrtt() {
+	_db=$(escape "$1")
+	_time=$2
+	_name=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name rtt; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  --logarithmic \
+	  --units=si \
+	  DEF:rttusec="$_db":rtt:AVERAGE \
+	  DEF:rttvarusec="$_db":rttvar:AVERAGE \
+	  CDEF:rtt=rttusec,1000,/ \
+	  CDEF:rttvar=rttvarusec,1000,/ \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"round-trip time plus variance in milliseconds\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:rtt#5794f2:"RTT\t " \
+	  GPRINT:rtt:LAST:"%8.0lf" \
+	  GPRINT:rtt:MIN:"%8.0lf" \
+	  GPRINT:rtt:AVERAGE:"%8.0lf" \
+	  GPRINT:rtt:MAX:"%8.0lf \l" \
+	  LINE1:rttvar#2e4669:"var\t ":STACK \
+	  GPRINT:rttvar:LAST:"%8.0lf" \
+	  GPRINT:rttvar:MIN:"%8.0lf" \
+	  GPRINT:rttvar:AVERAGE:"%8.0lf" \
+	  GPRINT:rttvar:MAX:"%8.0lf \l"
+}
+
+# $_db $_time $_name
+genwgbps() {
+	_db=$(escape "$1")
+	_time=$2
+	_name=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name Bps; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:rxbytes="$_db":rxbytes:AVERAGE \
+	  DEF:txbytes="$_db":txbytes:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_name bytes per second\l" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  AREA:txbytes#73bf69:"out\t " \
+	  GPRINT:txbytes:LAST:"%8.0lf" \
+	  GPRINT:txbytes:MIN:"%8.0lf" \
+	  GPRINT:txbytes:AVERAGE:"%8.0lf" \
+	  GPRINT:txbytes:MAX:"%8.0lf \l" \
+	  LINE1:rxbytes#2e4669:"in\t " \
+	  GPRINT:rxbytes:LAST:"%8.0lf" \
+	  GPRINT:rxbytes:MIN:"%8.0lf" \
+	  GPRINT:rxbytes:AVERAGE:"%8.0lf" \
+	  GPRINT:rxbytes:MAX:"%8.0lf \l"
+}
+
+# $_db $_time $_name
+genwglasths() {
+	_db=$(escape "$1")
+	_time=$2
+	_name=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name last handshake; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:lasthandshake="$_db":lasthandshake:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"                cur       min       avg        max\l" \
+	  LINE1:lasthandshake#5794f2:"last hs" \
+	  GPRINT:lasthandshake:LAST:"%8.0lf" \
+	  GPRINT:lasthandshake:MIN:"%8.0lf" \
+	  GPRINT:lasthandshake:AVERAGE:"%8.0lf" \
+	  GPRINT:lasthandshake:MAX:"%8.0lf \l"
+}
+
+# $_db $_name $_time
+genprocpct() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name nprocs; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:number="$_db":number:AVERAGE \
+	  DEF:cpupct="$_db":cpupct:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  LINE1:number#990099:"$(fmtlabel "# procs" 13)" \
+	  GPRINT:number:LAST:"%5.0lf" \
+	  GPRINT:number:MIN:"%10.0lf" \
+	  GPRINT:number:AVERAGE:"%10.0lf" \
+	  GPRINT:number:MAX:"%10.0lf\l" \
+	  LINE1:cpupct#f2495c:"$(fmtlabel "% cpu time" 13)" \
+	  GPRINT:cpupct:LAST:"%8.2lf" \
+	  GPRINT:cpupct:MIN:"%10.2lf" \
+	  GPRINT:cpupct:AVERAGE:"%10.2lf" \
+	  GPRINT:cpupct:MAX:"%10.2lf\l"
+}
+
+# $_db $_name $_time
+genprocsize() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name size; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:procsz="$_db":procsz:AVERAGE \
+	  DEF:rssz="$_db":rssz:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  AREA:rssz#5794f2:"$(fmtlabel "resident" 13)" \
+	  GPRINT:rssz:LAST:"%5.1lf %sB" \
+	  GPRINT:rssz:MIN:"%7.1lf %sB" \
+	  GPRINT:rssz:AVERAGE:"%7.1lf %sB" \
+	  GPRINT:rssz:MAX:"%7.1lf %sB\l" \
+	  LINE1:procsz#2e4669:"$(fmtlabel "txt,data,stack" 13)" \
+	  GPRINT:procsz:LAST:"%5.1lf %sB" \
+	  GPRINT:procsz:MIN:"%7.1lf %sB" \
+	  GPRINT:procsz:AVERAGE:"%7.1lf %sB" \
+	  GPRINT:procsz:MAX:"%7.1lf %sB\l"
+}
+
+# $_db $_name $_time
+genproctime() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	rrdtool graph - \
+	  --title "$_host - $_name time; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  DEF:usrusec="$_db":usrusec:AVERAGE \
+	  DEF:sysusec="$_db":sysusec:AVERAGE \
+	  DEF:totusec="$_db":totusec:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  COMMENT:"$_name cpu time in microseconds\l" \
+	  COMMENT:"                   cur         min         avg          max\l" \
+	  AREA:sysusec#f2495c:"$(fmtlabel "system" 13)" \
+	  GPRINT:sysusec:LAST:"%7.1lf%s" \
+	  GPRINT:sysusec:MIN:"%9.1lf%s" \
+	  GPRINT:sysusec:AVERAGE:"%9.1lf%s" \
+	  GPRINT:sysusec:MAX:"%9.1lf%s\l" \
+	  AREA:usrusec#00cc00:"$(fmtlabel "user" 13)":STACK \
+	  GPRINT:usrusec:LAST:"%7.1lf%s" \
+	  GPRINT:usrusec:MIN:"%9.1lf%s" \
+	  GPRINT:usrusec:AVERAGE:"%9.1lf%s" \
+	  GPRINT:usrusec:MAX:"%9.1lf%s\l" \
+	  LINE1:totusec#2e4669:"$(fmtlabel "total" 13)" \
+	  GPRINT:totusec:LAST:"%7.1lf%s" \
+	  GPRINT:totusec:MIN:"%9.1lf%s" \
+	  GPRINT:totusec:AVERAGE:"%9.1lf%s" \
+	  GPRINT:totusec:MAX:"%9.1lf%s\l"
+}
+
+# $_db $_name $_time
+gensensor() {
+	_db=$1
+	_name=$2
+	_time=$3
+
+	# 1 EMPTY, 2 READY, 3 POWERUP, 4 ONLINE, 5 IDLE, 6 ACTIVE, 7 REBUILD, 8 POWERDOWN, 9 FAIL, 10 PFAIL
+	_softraid="4 = Online; 9 = Fail"
+
+	_fullnameline="COMMENT:\l"
+	if [ "${#_name}" -gt 10 ]; then
+		_fullnameline="COMMENT:$_name\l"
+	fi
+
+	_lower_limit=
+	_color='#2e4669'
+	_prec='%10.1lf'
+
+	case "$_name" in
+	softraid[0-9]*.drive[0-9]*)
+		_fullnameline="COMMENT:$_softraid\l"
+		_prec="%10.0lf"
+		;;
+	cpu[0-9]*.frequency[0-9]*)
+		_color='#00cc00'
+		_prec="%6.1lf %sHz"
+		;;
+	*[0-9].volt[0-9]*)
+		_color='#f2495c'
+		_prec="%10.3lf"
+		;;
+	*[0-9].temp[0-9]*)
+		_color='#5794f2'
+		_lower_limit='--lower-limit 0'
+		_prec='%7.1lf °C'
+		;;
+	*[0-9].fan[0-9]*)
+		_color='#ff8000'
+		_prec="%6.0lf RPM"
+		;;
+	esac
+
+	rrdtool graph - \
+	  --title "$_host - $_name sensor; $(humanduration "$_time")" \
+	  --start end-"$_time" --end now \
+	  --slope-mode \
+	  $_lower_limit \
+	  DEF:value="$_db":value:AVERAGE \
+	  COMMENT:"$(escape "$_now")\r" \
+	  "$_fullnameline" \
+	  COMMENT:"                     cur         min         avg          max\l" \
+	  LINE1:value$_color:"$(fmtlabel "$_name" 10)" \
+	  GPRINT:value:LAST:"$_prec" \
+	  GPRINT:value:MIN:"$_prec" \
+	  GPRINT:value:AVERAGE:"$_prec" \
+	  GPRINT:value:MAX:"$_prec\l"
+}
+
+for _rrd in "$@"; do
+	if [ ! -s "$_rrd" ]; then
+		echo "$_rrd is not a file or empty"
+		continue
+	fi
+
+	case "$_rrd" in
+	*/load.rrd)
+		genload "$_rrd" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-load-$_timepad.png"
+		;;
+	*/time.rrd)
+		gentime "$_rrd" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-time-$_timepad.png"
+		;;
+	*/mem.rrd)
+		genmem "$_rrd" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-mem-$_timepad.png"
+		;;
+	*/mbuf.rrd)
+		genmbufbytes "$_rrd" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-mbuf-bytes-$_timepad.png"
+		genmbufcount "$_rrd" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-mbuf-count-$_timepad.png"
+		;;
+	*/pf.rrd)
+		genpf "$_rrd" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-pf-$_timepad.png"
+		;;
+	*/cpuiow*.rrd)
+		_cpu=$(basename "${_rrd%.rrd}")
+		gencpuiow "$_rrd" "$_cpu" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_cpu-iow-$_timepad.png"
+		;;
+	*/cpu???.rrd | */cpu??.rrd | */cpu?.rrd | */cpu.rrd)
+		_cpu=$(basename "${_rrd%.rrd}")
+		gencpuniow "$_rrd" "$_cpu" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_cpu-niow-$_timepad.png"
+		;;
+	*/if_*.rrd)
+		_name=$(basename "${_rrd%.rrd}")
+		gennetbps "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-1-bps-$_timepad.png"
+		gennetpps "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-2-pps-$_timepad.png"
+		gennetbpp "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-3-bpp-$_timepad.png"
+		genneterr "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-4-err-$_timepad.png"
+		;;
+	*/wg_*.rrd)
+		_name=$(basename "${_rrd%.rrd}")
+		_name=$(echo "${_name#wg_}" | tr : -)
+		genwgbps "$_rrd" "$_time" "$_name" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-1-bps-$_timepad.png"
+		#genwglasths "$_rrd" "$_time" "$_name" > "$_tmpfile" &&
+		#mv "$_tmpfile" "$_host-$_name-2-lasths-$_timepad.png"
+		;;
+	*/rtt_*.rrd)
+		_file=$(basename "${_rrd%.rrd}")
+		_name=${_file#rtt_}
+		_file=$(echo "$_file" | tr : -)
+		genrtt "$_rrd" "$_time" "$_name" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_file-$_timepad.png"
+		;;
+	*/io_*.rrd)
+		_name=$(basename "${_rrd%.rrd}")
+		geniobps "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-1-bps-$_timepad.png"
+		geniotps "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-2-tps-$_timepad.png"
+		;;
+	*/df_*.rrd)
+		_name=$(basename "${_rrd%.rrd}")
+		gendfblocks "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-1-blocks-$_timepad.png"
+		gendffiles  "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-2-files-$_timepad.png"
+		;;
+	*/smart_*.rrd)
+		_name=$(basename "${_rrd%.rrd}")
+		gensmart "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-smart-$_timepad.png"
+		;;
+	*/proc_*.rrd)
+		_name=$(basename "${_rrd%.rrd}")
+		genprocpct "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-procpct-$_timepad.png"
+		genproctime "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-proctime-$_timepad.png"
+		genprocsize "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-$_name-procsize-$_timepad.png"
+		;;
+	*/sensor_*.rrd)
+		_name=$(basename "${_rrd%.rrd}")
+		_name=${_name#sensor_}
+		gensensor "$_rrd" "$_name" "$_time" > "$_tmpfile" &&
+		mv "$_tmpfile" "$_host-sensor_$_name-$_timepad.png"
+		;;
+	esac
+done
