@@ -98,35 +98,32 @@ gets_pf(void)
 int
 get_pf(char *symon_buf, int maxlen, struct stream *st)
 {
-    u_int64_t n;
-
     if (!pf_stat.running) {
         return 0;
     }
 
-    n = pf_stat.states;
     return snpack(symon_buf, maxlen, st->arg, MT_PF,
-                  pf_stat.bcounters[0][0],
-                  pf_stat.bcounters[0][1],
-                  pf_stat.bcounters[1][0],
-                  pf_stat.bcounters[1][1],
-                  pf_stat.pcounters[0][0][PF_PASS],
-                  pf_stat.pcounters[0][0][PF_DROP],
-                  pf_stat.pcounters[0][1][PF_PASS],
-                  pf_stat.pcounters[0][1][PF_DROP],
-                  pf_stat.pcounters[1][0][PF_PASS],
-                  pf_stat.pcounters[1][0][PF_DROP],
-                  pf_stat.pcounters[1][1][PF_PASS],
-                  pf_stat.pcounters[1][1][PF_DROP],
-                  n,
-                  pf_stat.fcounters[0],
-                  pf_stat.fcounters[1],
-                  pf_stat.fcounters[2],
-                  pf_stat.counters[0],
-                  pf_stat.counters[1],
-                  pf_stat.counters[2],
-                  pf_stat.counters[3],
-                  pf_stat.counters[4],
-                  pf_stat.counters[5]
+                  pf_stat.states_halfopen,
+                  pf_stat.states,
+                  pf_stat.fcounters[FCNT_STATE_SEARCH],
+                  pf_stat.fcounters[FCNT_STATE_INSERT],
+                  pf_stat.fcounters[FCNT_STATE_REMOVALS],
+                  pf_stat.counters[PFRES_MATCH],
+                  pf_stat.counters[PFRES_BADOFF],
+                  pf_stat.counters[PFRES_FRAG],
+                  pf_stat.counters[PFRES_SHORT],
+                  pf_stat.counters[PFRES_NORM],
+                  pf_stat.counters[PFRES_MEMORY],
+                  pf_stat.counters[PFRES_TS],
+                  pf_stat.counters[PFRES_CONGEST],
+                  pf_stat.counters[PFRES_IPOPTIONS],
+                  pf_stat.counters[PFRES_PROTCKSUM],
+                  pf_stat.counters[PFRES_BADSTATE],
+                  pf_stat.counters[PFRES_STATEINS],
+                  pf_stat.counters[PFRES_MAXSTATES],
+                  pf_stat.counters[PFRES_SRCLIMIT],
+                  pf_stat.counters[PFRES_SYNPROXY],
+                  pf_stat.counters[PFRES_TRANSLATE],
+                  pf_stat.counters[PFRES_NOROUTE]
         );
 }
