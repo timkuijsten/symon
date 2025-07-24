@@ -104,6 +104,16 @@ get_pf(char *symon_buf, int maxlen, struct stream *st)
 
     return snpack(symon_buf, maxlen, st->arg, MT_PF,
                   pf_stat.states_halfopen,
+                  pf_stat.states,
+                  pf_stat.fcounters[FCNT_STATE_SEARCH],
+                  pf_stat.fcounters[FCNT_STATE_INSERT],
+                  pf_stat.fcounters[FCNT_STATE_REMOVALS],
+                  pf_stat.counters[PFRES_MATCH],
+                  pf_stat.counters[PFRES_BADOFF],
+                  pf_stat.counters[PFRES_FRAG],
+                  pf_stat.counters[PFRES_SHORT],
+                  pf_stat.counters[PFRES_NORM],
+                  pf_stat.counters[PFRES_MEMORY],
                   pf_stat.counters[PFRES_TS],
                   pf_stat.counters[PFRES_CONGEST],
                   pf_stat.counters[PFRES_IPOPTIONS],
@@ -114,16 +124,6 @@ get_pf(char *symon_buf, int maxlen, struct stream *st)
                   pf_stat.counters[PFRES_SRCLIMIT],
                   pf_stat.counters[PFRES_SYNPROXY],
                   pf_stat.counters[PFRES_TRANSLATE],
-                  pf_stat.counters[PFRES_NOROUTE],
-                  pf_stat.states,
-                  pf_stat.fcounters[FCNT_STATE_SEARCH],
-                  pf_stat.fcounters[FCNT_STATE_INSERT],
-                  pf_stat.fcounters[FCNT_STATE_REMOVALS],
-                  pf_stat.counters[PFRES_MATCH],
-                  pf_stat.counters[PFRES_BADOFF],
-                  pf_stat.counters[PFRES_FRAG],
-                  pf_stat.counters[PFRES_SHORT],
-                  pf_stat.counters[PFRES_NORM],
-                  pf_stat.counters[PFRES_MEMORY]
+                  pf_stat.counters[PFRES_NOROUTE]
         );
 }

@@ -250,22 +250,28 @@ proc_*.rrd)
 pf.rrd)
     # Build pf file
     create_rrd $i \
-	DS:bytes_v4_in:DERIVE:$INTERVAL:0:U DS:bytes_v4_out:DERIVE:$INTERVAL:0:U \
-	DS:bytes_v6_in:DERIVE:$INTERVAL:0:U DS:bytes_v6_out:DERIVE:$INTERVAL:0:U \
-	DS:packets_v4_in_pass:DERIVE:$INTERVAL:0:U DS:packets_v4_in_drop:DERIVE:$INTERVAL:0:U \
-	DS:packets_v4_out_pass:DERIVE:$INTERVAL:0:U DS:packets_v4_out_drop:DERIVE:$INTERVAL:0:U \
-	DS:packets_v6_in_pass:DERIVE:$INTERVAL:0:U DS:packets_v6_in_drop:DERIVE:$INTERVAL:0:U \
-	DS:packets_v6_out_pass:DERIVE:$INTERVAL:0:U DS:packets_v6_out_drop:DERIVE:$INTERVAL:0:U \
+	DS:halfopen:GAUGE:$INTERVAL:0:U \
 	DS:states_entries:GAUGE:$INTERVAL:0:U \
-	DS:states_searches:DERIVE:$INTERVAL:0:U \
-	DS:states_inserts:DERIVE:$INTERVAL:0:U \
-	DS:states_removals:DERIVE:$INTERVAL:0:U \
-	DS:counters_match:DERIVE:$INTERVAL:0:U \
-	DS:counters_badoffset:DERIVE:$INTERVAL:0:U \
-	DS:counters_fragment:DERIVE:$INTERVAL:0:U \
-	DS:counters_short:DERIVE:$INTERVAL:0:U \
-	DS:counters_normalize:DERIVE:$INTERVAL:0:U \
-	DS:counters_memory:DERIVE:$INTERVAL:0:U
+	DS:states_searches:COUNTER:$INTERVAL:0:U \
+	DS:states_inserts:COUNTER:$INTERVAL:0:U \
+	DS:states_removals:COUNTER:$INTERVAL:0:U \
+	DS:ctr_match:COUNTER:$INTERVAL:0:U \
+	DS:ctr_badoffset:COUNTER:$INTERVAL:0:U \
+	DS:ctr_fragment:COUNTER:$INTERVAL:0:U \
+	DS:ctr_short:COUNTER:$INTERVAL:0:U \
+	DS:ctr_normalize:COUNTER:$INTERVAL:0:U \
+	DS:ctr_memory:COUNTER:$INTERVAL:0:U \
+	DS:ctr_badtimestamp:COUNTER:$INTERVAL:0:U \
+	DS:ctr_congestion:COUNTER:$INTERVAL:0:U \
+	DS:ctr_ipoption:COUNTER:$INTERVAL:0:U \
+	DS:ctr_protocksum:COUNTER:$INTERVAL:0:U \
+	DS:ctr_statemismatch:COUNTER:$INTERVAL:0:U \
+	DS:ctr_stateinsert:COUNTER:$INTERVAL:0:U \
+	DS:ctr_statelimit:COUNTER:$INTERVAL:0:U \
+	DS:ctr_srclimit:COUNTER:$INTERVAL:0:U \
+	DS:ctr_synproxy:COUNTER:$INTERVAL:0:U \
+	DS:ctr_translate:COUNTER:$INTERVAL:0:U \
+	DS:ctr_noroute:COUNTER:$INTERVAL:0:U
     ;;
 
 pfq_*.rrd)
