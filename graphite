@@ -1,0 +1,161 @@
+#!/bin/sh
+
+# usage: host st starg ts data
+parsedata() {
+	_host=$1
+	_st=$2
+	_ts=$4
+	_d=$5
+
+	case "$_st" in
+	mem)
+		echo "$_d" | while IFS=: read -r _active _real _free _swap \
+		    _swaptot; do
+			echo "memused;host=$_host $_real $_ts"
+			echo "memavail;host=$_host $_free $_ts"
+			echo "memactive;host=$_host $_active $_ts"
+			echo "memswap;host=$_host $_swap $_ts"
+		done
+		;;
+	load)
+		echo "$_d" | while IFS=: read -r _load1 _load5 _load15; do
+			echo "load1;host=$_host $_load1 $_ts"
+			echo "load5;host=$_host $_load5 $_ts"
+			echo "load15;host=$_host $_load15 $_ts"
+		done
+		;;
+	cpu)
+		echo "$_d" | while IFS=: read -r _user _nice _sys _intr _idle
+		do
+			echo "cpuuser;host=$_host $_user $_ts"
+			echo "cpunice;host=$_host $_nice $_ts"
+			echo "cpusys;host=$_host $_sys $_ts"
+			echo "cpuintr;host=$_host $_intr $_ts"
+			echo "cpuidle;host=$_host $_idle $_ts"
+		done
+		;;
+	pf)
+		echo "$_d" | while IFS=: read -r _pfhalfopen _pfentries \
+		    _pfsearches _pfinserts _pfremovals _pfmatch _pfbadoffset \
+		    _pffragment _pfshort _pfnormalize _pfmemory \
+		    _pfbadtimestamp _pfcongestion _pfipoption _pfprotocksum \
+		    _pfstatemismatch _pfinsertfail _pfstatelimit _pfsrclimit \
+		    _pfsynproxy _pftranslate _pfnoroute; do
+			echo "pfhalfopen;host=$_host $_pfhalfopen $_ts"
+			echo "pfentries;host=$_host $_pfentries $_ts"
+			echo "pfsearches;host=$_host $_pfsearches $_ts"
+			echo "pfinserts;host=$_host $_pfinserts $_ts"
+			echo "pfremovals;host=$_host $_pfremovals $_ts"
+			echo "pfmatch;host=$_host $_pfmatch $_ts"
+			echo "pfbadoffset;host=$_host $_pfbadoffset $_ts"
+			echo "pffragment;host=$_host $_pffragment $_ts"
+			echo "pfshort;host=$_host $_pfshort $_ts"
+			echo "pfnormalize;host=$_host $_pfnormalize $_ts"
+			echo "pfmemory;host=$_host $_pfmemory $_ts"
+			echo "pfbadtimestamp;host=$_host $_pfbadtimestamp $_ts"
+			echo "pfcongestion;host=$_host $_pfcongestion $_ts"
+			echo "pfipoption;host=$_host $_pfipoption $_ts"
+			echo "pfprotocksum;host=$_host $_pfprotocksum $_ts"
+			echo "pfstatemismatch;host=$_host $_pfstatemismatch $_ts"
+			echo "pfinsertfail;host=$_host $_pfinsertfail $_ts"
+			echo "pfstatelimit;host=$_host $_pfstatelimit $_ts"
+			echo "pfsrclimit;host=$_host $_pfsrclimit $_ts"
+			echo "pfsynproxy;host=$_host $_pfsynproxy $_ts"
+			echo "pftranslate;host=$_host $_pftranslate $_ts"
+			echo "pfnoroute;host=$_host $_pfnoroute $_ts"
+		done
+		;;
+	mbuf)
+		echo "$_d" | while IFS=: read -r _totmbufs _data _oobdata \
+		    _control _header _ftable _soname _soopts _pgused _pgtotal \
+		    _totmem _totpct _drops _wait _drain; do
+			echo "mbufused;host=$_host $_totmem $_ts"
+			echo "mbufusedpct;host=$_host $_totpct $_ts"
+			echo "mbuftotal;host=$_host $_pgtotal $_ts"
+			echo "mbufalive;host=$_host $_pgused $_ts"
+			echo "mbufpl;host=$_host $_totmbufs $_ts"
+			echo "mbufdata;host=$_host $_data $_ts"
+			echo "mbufoobdata;host=$_host $_oobdata $_ts"
+			echo "mbufctrldata;host=$_host $_control $_ts"
+			echo "mbufpkghdr;host=$_host $_header $_ts"
+			echo "mbuffrag;host=$_host $_ftable $_ts"
+			echo "mbufsocknam;host=$_host $_soname $_ts"
+			echo "mbufsockopt;host=$_host $_soopts $_ts"
+			echo "mbufdenied;host=$_host $_drops $_ts"
+			echo "mbufdelayed;host=$_host $_wait $_ts"
+			echo "mbufdrain;host=$_host $_drain $_ts"
+		done
+		;;
+	if)
+		echo "$_d" | while IFS=: read -r _ipackets _opackets _ibytes \
+		    _obytes _imcasts _omcasts _ierrors _oerrors _collisions _drops
+		do
+			echo "ifipkt;host=$_host;if=$_starg $_ipackets $_ts"
+			echo "ifopkt;host=$_host;if=$_starg $_opackets $_ts"
+			echo "ifibyte;host=$_host;if=$_starg $_ibytes $_ts"
+			echo "ifobyte;host=$_host;if=$_starg $_obytes $_ts"
+			echo "ifimcast;host=$_host;if=$_starg $_imcasts $_ts"
+			echo "ifomcast;host=$_host;if=$_starg $_omcasts $_ts"
+			echo "ifierr;host=$_host;if=$_starg $_ierrors $_ts"
+			echo "ifoerr;host=$_host;if=$_starg $_oerrors $_ts"
+			echo "ifcollis;host=$_host;if=$_starg $_collisions $_ts"
+			echo "ifdrop;host=$_host;if=$_starg $_drops $_ts"
+		done
+		;;
+	io)
+		echo "$_d" | while IFS=: read -r _rxfer _wxfer _seeks _rbytes \
+		    _wbytes; do
+			echo "iorxfer;host=$_host;dev=$_starg $_rxfer $_ts"
+                        echo "iowxfer;host=$_host;dev=$_starg $_wxfer $_ts"
+                        echo "ioseeks;host=$_host;dev=$_starg $_seeks $_ts"
+                        echo "iorbyte;host=$_host;dev=$_starg $_rbytes $_ts"
+                        echo "iowbyte;host=$_host;dev=$_starg $_wbytes $_ts"
+		done
+		;;
+	df)
+		echo "$_d" | while IFS=: read -r _blocks _bfree _bavail _files \
+		    _ffree _syncwrites _asyncwrites; do
+                        echo "dfblktot;host=$_host;dev=$_starg $_blocks $_ts"
+                        echo "dfblkfree;host=$_host;dev=$_starg $_bfree $_ts"
+                        echo "dfblkavail;host=$_host;dev=$_starg $_bavail $_ts"
+                        echo "dfinotot;host=$_host;dev=$_starg $_files $_ts"
+                        echo "dfinofree;host=$_host;dev=$_starg $_ffree $_ts"
+                        echo "dfwsync;host=$_host;dev=$_starg $_syncwrites $_ts"
+                        echo "dfwasync;host=$_host;dev=$_starg $_asyncwrites $_ts"
+		done
+		;;
+	proc)
+		echo "$_d" | while IFS=: read -r _cnt _usrusec _sysusec \
+		    _totusec _cpupct _procsz _rss; do
+                        echo "proccnt;host=$_host;n=$_starg $_cnt $_ts"
+                        echo "proccpupct;host=$_host;n=$_starg $_cpupct $_ts"
+                        echo "procusrusec;host=$_host;n=$_starg $_usrusec $_ts"
+                        echo "procsysusec;host=$_host;n=$_starg $_sysusec $_ts"
+                        echo "proctotusec;host=$_host;n=$_starg $_totusec $_ts"
+                        echo "procsz;host=$_host;n=$_starg $_procsz $_ts"
+                        echo "procrss;host=$_host;n=$_starg $_rss $_ts"
+		done
+		;;
+	wg)
+		echo "$_d" | while IFS=: read -r _rxbytes _txbytes \
+		    _lasthandshake; do
+                        echo "wgrxbyte;host=$_host;wg=$_starg $_rxbytes $_ts"
+                        echo "wgtxbyte;host=$_host;wg=$_starg $_txbytes $_ts"
+                        echo "wglasths;host=$_host;wg=$_starg $_lasthandshake $_ts"
+		done
+		;;
+	time)
+		echo "$_d" | while IFS=: read -r _usec; do
+                        echo "timeusec;host=$_host $_usec $_ts"
+		done
+		;;
+	esac
+}
+
+while IFS=';' read -r _host _rest; do
+	echo "$_rest" | tr ';' '\n' | while read -r _data; do
+		echo "$_data" | while IFS=: read -r _st _starg _ts _d; do
+			parsedata "$_host" "$_st" "$_starg" "$_ts" "$_d"
+		done
+	done
+done
